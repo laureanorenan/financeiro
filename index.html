@@ -94,10 +94,12 @@ tfoot td{font-weight:500;background:var(--surface-100);color:var(--ink-900)}
 .r{text-align:right}
 .tabela-rolagem{overflow-x:auto}
 /* cabecalho de grupo, quando a lista esta agrupada por cartao/conta */
-tr.grupo td{background:var(--surface-100);padding:var(--space-2) var(--space-4);
-  border-bottom:1px solid var(--border-strong)}
+tr.grupo td{vertical-align:middle}
 tr.grupo .g-nome{display:flex;align-items:center;gap:8px;color:var(--ink-900);font-weight:500}
-tr.grupo .g-cont{color:var(--ink-500);font-size:11px;font-weight:400}
+/* o detalhe de um grupo entra embaixo da linha dele, sem moldura própria */
+tr.detalhe > td{padding:0;background:var(--surface-100);border-bottom:1px solid var(--border-strong)}
+tr.detalhe table{background:var(--surface-000)}
+tr.detalhe th{background:transparent}
 .forte{color:var(--ink-900);font-weight:500}
 
 .selo{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:500;
@@ -329,7 +331,8 @@ var estado = {
   // começa no mês corrente para a lista não abrir com um ano de parcelas futuras
   filtros: { de: ym(hoje())+"-01", ate: fimDoMes(ym(hoje())), status:"", categoria:"", forma:"", tipo:"" },
   cartaoFatura: null, competenciaFatura: null, contaExtrato: null,
-  agrupar: (function(){ try{ return localStorage.getItem("fin.agrupar")==="1"; }catch(e){ return false; } })()
+  agrupar: (function(){ try{ return localStorage.getItem("fin.agrupar")==="1"; }catch(e){ return false; } })(),
+  grupoAberto: null
 };
 function fimDoMes(m){
   var a=+m.slice(0,4), s=+m.slice(5,7);
@@ -857,7 +860,7 @@ function vLancamentos(){
       (nInfo ? ' · '+nInfo+' informativo(s) fora da conta' : "")+'</p></div>'+
     '<div class="acoes">'+
       '<button class="btn'+(estado.agrupar?" primary":"")+'" data-act="agrupar">'+
-        (estado.agrupar ? "Lista corrida" : "Agrupar por cartão")+'</button>'+
+        (estado.agrupar ? "Ver lançamentos" : "Agrupar por cartão")+'</button>'+
       '<button class="btn" data-act="novaRecorrencia">+ Recorrente</button>'+
       '<button class="btn primary" data-act="novoLanc">+ Lançamento</button>'+
     '</div></div>'+
@@ -873,22 +876,26 @@ function vLancamentos(){
       '<div><button class="btn" data-act="limparFiltros" style="width:100%">Limpar filtros</button></div>'+
     '</div></div></div>'+
 
-    '<div class="card">'+ (lista.length ?
-      '<div class="tabela-rolagem"><table><thead><tr>'+
-        '<th>Data</th><th>Descrição</th><th>Categoria</th><th>Origem</th>'+
-        '<th class="r">Valor</th><th>Situação</th><th></th></tr></thead><tbody>'+
-        (estado.agrupar ? corpoAgrupado(lista) : lista.map(linhaLanc).join(""))+
-      '</tbody></table></div>'
+    '<div class="card">'+ (lista.length
+      ? (estado.agrupar ? tabelaResumo(lista) : tabelaLancamentos(lista))
       : '<div class="vazio"><h4>Nenhum lançamento</h4><p>Ajuste os filtros ou registre o primeiro.</p></div>')+
     '</div>';
 }
 
-/* Lista em blocos: um por cartão e um por conta, cada um com o total do período.
+function tabelaLancamentos(lista){
+  return '<div class="tabela-rolagem"><table><thead><tr>'+
+    '<th>Data</th><th>Descrição</th><th>Categoria</th><th>Origem</th>'+
+    '<th class="r">Valor</th><th>Situação</th><th></th></tr></thead><tbody>'+
+    lista.map(linhaLanc).join("")+
+    '</tbody></table></div>';
+}
+
+/* Resumo: uma linha por cartão e por conta, com o total do período.
    A ordem segue o cadastro — cartões primeiro, contas depois. */
 function chaveOrigem(l){
   return l.forma==="cartao" ? "k:"+l.cartao_id : "c:"+l.conta_id;
 }
-function corpoAgrupado(lista){
+function agruparPorOrigem(lista){
   var ordem = D.cartoes.map(function(c){ return "k:"+c.id; })
               .concat(D.contas.map(function(c){ return "c:"+c.id; }));
   var grupos = {};
@@ -898,22 +905,48 @@ function corpoAgrupado(lista){
   });
   // origens que não estão mais cadastradas ainda assim aparecem, no fim
   Object.keys(grupos).forEach(function(k){ if(ordem.indexOf(k) < 0) ordem.push(k); });
-
-  return ordem.filter(function(k){ return grupos[k] && grupos[k].length; }).map(function(k){
-    var itens = grupos[k];
-    var ehCartao = k.slice(0,2)==="k:", id = k.slice(2);
-    var reg = (ehCartao ? cartao(id) : conta(id)) || {};
-    var nome = reg.nome || (ehCartao ? "cartão removido" : "conta removida");
-    var liquido = valem(itens).reduce(function(a,l){
-      return a + (l.tipo==="receita" ? 1 : -1) * Number(l.valor); }, 0);
-    return '<tr class="grupo"><td colspan="4"><div class="g-nome">'+chipIcone(reg, 14)+
-        '<span class="g-txt">'+esc(nome)+'</span>'+
-        '<span class="g-cont">'+itens.length+' lançamento(s)</span></div></td>'+
-      '<td class="r num forte '+(liquido<0?"neg":"pos")+'">'+
-        (liquido<0?"−":"+")+BRL(Math.abs(liquido))+'</td>'+
-      '<td colspan="2"></td></tr>'+
-      itens.map(linhaLanc).join("");
-  }).join("");
+  return ordem.filter(function(k){ return grupos[k] && grupos[k].length; })
+    .map(function(k){
+      var ehCartao = k.slice(0,2)==="k:", id = k.slice(2);
+      var reg = (ehCartao ? cartao(id) : conta(id)) || {};
+      var contam = valem(grupos[k]);
+      return {
+        chave: k, reg: reg, itens: grupos[k],
+        nome: reg.nome || (ehCartao ? "cartão removido" : "conta removida"),
+        receitas: contam.filter(function(l){ return l.tipo==="receita"; })
+                        .reduce(function(a,l){ return a+Number(l.valor); }, 0),
+        despesas: contam.filter(function(l){ return l.tipo==="despesa"; })
+                        .reduce(function(a,l){ return a+Number(l.valor); }, 0)
+      };
+    });
+}
+function tabelaResumo(lista){
+  var gs = agruparPorOrigem(lista);
+  var tRec = gs.reduce(function(a,g){ return a+g.receitas; }, 0);
+  var tDes = gs.reduce(function(a,g){ return a+g.despesas; }, 0);
+  return '<div class="tabela-rolagem"><table><thead><tr>'+
+    '<th>Origem</th><th class="r">Lançamentos</th><th class="r">Receitas</th>'+
+    '<th class="r">Despesas</th><th class="r">Total</th><th></th></tr></thead><tbody>'+
+    gs.map(function(g){
+      var aberto = estado.grupoAberto === g.chave;
+      var liq = g.receitas - g.despesas;
+      return '<tr class="grupo"><td><div class="g-nome">'+chipIcone(g.reg, 16)+
+          '<span class="g-txt">'+esc(g.nome)+'</span></div></td>'+
+        '<td class="r num">'+g.itens.length+'</td>'+
+        '<td class="r num">'+(g.receitas ? "+"+BRL(g.receitas) : "—")+'</td>'+
+        '<td class="r num">'+(g.despesas ? "−"+BRL(g.despesas) : "—")+'</td>'+
+        '<td class="r num forte '+(liq<0?"neg":"pos")+'">'+(liq<0?"−":"+")+BRL(Math.abs(liq))+'</td>'+
+        '<td class="r"><button class="btn sm" data-act="abrirGrupo" data-k="'+esc(g.chave)+'">'+
+          (aberto ? "Fechar" : "Ver")+'</button></td></tr>'+
+        (aberto ? '<tr class="detalhe"><td colspan="6">'+tabelaLancamentos(g.itens)+'</td></tr>' : "");
+    }).join("")+
+    '</tbody><tfoot><tr><td>Total do período</td>'+
+      '<td class="r num">'+lista.length+'</td>'+
+      '<td class="r num">'+(tRec ? "+"+BRL(tRec) : "—")+'</td>'+
+      '<td class="r num">'+(tDes ? "−"+BRL(tDes) : "—")+'</td>'+
+      '<td class="r num forte '+((tRec-tDes)<0?"neg":"pos")+'">'+
+        ((tRec-tDes)<0?"−":"+")+BRL(Math.abs(tRec-tDes))+'</td><td></td></tr></tfoot>'+
+    '</table></div>';
 }
 
 function linhaLanc(l){
@@ -1555,8 +1588,14 @@ var ACOES = {
     render();
   },
 
+  abrirGrupo: function(b){
+    estado.grupoAberto = estado.grupoAberto === b.dataset.k ? null : b.dataset.k;
+    render();
+  },
+
   agrupar: function(){
     estado.agrupar = !estado.agrupar;
+    estado.grupoAberto = null;
     try{ localStorage.setItem("fin.agrupar", estado.agrupar ? "1" : "0"); }catch(e){}
     render();
   },
