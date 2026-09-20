@@ -80,6 +80,9 @@ a{color:var(--chart-1)}
 .btn.perigo{color:var(--negative);border-color:var(--negative)}
 .btn:disabled{opacity:.55;cursor:default}
 .acoes{display:flex;gap:var(--space-2);flex-wrap:wrap}
+/* numa tabela os botões ficam numa linha só; a tabela rola se faltar largura */
+table .acoes{flex-wrap:nowrap}
+table .acoes .btn{white-space:nowrap}
 
 table{width:100%;border-collapse:collapse}
 th{text-align:left;background:var(--surface-100);border-bottom:1px solid var(--border-subtle);
@@ -98,6 +101,12 @@ tfoot td{font-weight:500;background:var(--surface-100);color:var(--ink-900)}
 .s-pend{color:var(--caution);border-color:var(--caution)}
 .s-venc{color:var(--negative);border-color:var(--negative)}
 .s-fat{color:var(--ink-500);border-color:var(--border-strong)}
+.s-info{color:var(--chart-1);border-color:var(--chart-1)}
+.caixa{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;margin-bottom:var(--space-4);
+  border:1px solid var(--border-subtle);border-radius:var(--raio-2);background:var(--surface-100);cursor:pointer}
+.caixa input{margin-top:2px;flex:none}
+.caixa .legenda{line-height:1.4}
+.valor-info{opacity:.55;text-decoration:line-through}
 .pos{color:var(--positive)} .neg{color:var(--negative)} .cau{color:var(--caution)}
 
 .campo{margin-bottom:var(--space-3)}
@@ -315,12 +324,17 @@ function nomeCat(l){
   return c.nome + (s ? " · " + s.nome : "");
 }
 
+/* Lançamento informativo: fica registrado mas não mexe em dinheiro nenhum
+   (saldo, limite, fatura, painel e relatórios ignoram). */
+function ehInfo(l){ return !!l.informativo; }
+function valem(lista){ return lista.filter(function(l){ return !ehInfo(l); }); }
+
 /* Saldo de uma conta: inicial + receitas pagas − despesas pagas (inclui pagamento de fatura) */
 function saldoConta(id){
   var c = conta(id); if(!c) return 0;
   var s = Number(c.saldo_inicial)||0;
   D.lancamentos.forEach(function(l){
-    if(l.forma!=="conta" || l.conta_id!==id || l.status!=="pago") return;
+    if(ehInfo(l) || l.forma!=="conta" || l.conta_id!==id || l.status!=="pago") return;
     s += (l.tipo==="receita" ? 1 : -1) * (Number(l.valor)||0);
   });
   return s;
@@ -331,7 +345,7 @@ function saldoTotal(){ return D.contas.filter(a=>a.ativo!==false).reduce(functio
 function usoCartao(id){
   var usado = 0;
   D.lancamentos.forEach(function(l){
-    if(l.forma!=="cartao" || l.cartao_id!==id) return;
+    if(ehInfo(l) || l.forma!=="cartao" || l.cartao_id!==id) return;
     var f = l.fatura_id ? fatura(l.fatura_id) : null;
     if(f && f.status==="paga") return;
     usado += Number(l.valor)||0;
@@ -344,6 +358,7 @@ function limiteDisponivel(id){
 }
 
 function statusLanc(l){
+  if(ehInfo(l)) return "informativo";
   if(l.status==="pago") return "pago";
   // compra no cartão não vence sozinha: quem vence é a fatura
   if(l.forma==="cartao"){
@@ -357,7 +372,7 @@ function statusLanc(l){
 }
 function selo(st){
   var m = { pago:["s-pago","Pago"], pendente:["s-pend","Pendente"], vencido:["s-venc","Vencido"],
-            fatura:["s-fat","Na fatura"],
+            fatura:["s-fat","Na fatura"], informativo:["s-info","Informativo"],
             aberta:["s-pend","Aberta"], paga:["s-pago","Paga"] }[st] || ["s-pend",st];
   return '<span class="selo '+m[0]+'">'+m[1]+'</span>';
 }
@@ -377,7 +392,7 @@ async function garantirFatura(cartaoObj, ciclo){
 }
 
 function totalFatura(f){
-  return D.lancamentos.filter(function(l){ return l.fatura_id===f.id; })
+  return D.lancamentos.filter(function(l){ return l.fatura_id===f.id && !ehInfo(l); })
     .reduce(function(a,l){ return a + (Number(l.valor)||0); },0);
 }
 
@@ -402,7 +417,8 @@ async function gerarRecorrencias(){
           tipo:r.tipo, forma:r.forma, descricao:r.descricao, valor:r.valor, data:data,
           categoria_id:r.categoria_id, subcategoria_id:r.subcategoria_id,
           conta_id:r.forma==="conta"?r.conta_id:null, cartao_id:r.forma==="cartao"?r.cartao_id:null,
-          status:"pendente", recorrencia_id:r.id, exemplo:!!r.exemplo
+          status:"pendente", recorrencia_id:r.id, exemplo:!!r.exemplo,
+          informativo: !!r.informativo
         };
         if(r.forma==="cartao"){
           var c = cartao(r.cartao_id);
@@ -531,7 +547,9 @@ function mesAtualLanc(){
 }
 
 function vPainel(){
-  var m = mesAtualLanc();
+  var mTodos = mesAtualLanc();
+  var m = valem(mTodos);                       // informativos ficam de fora das contas
+  var info = mTodos.filter(ehInfo);
   var receitas = m.filter(l=>l.tipo==="receita").reduce((a,l)=>a+Number(l.valor),0);
   var despesas = m.filter(l=>l.tipo==="despesa").reduce((a,l)=>a+Number(l.valor),0);
 
@@ -547,7 +565,7 @@ function vPainel(){
   // próximas contas a vencer: o que está vencido + o que vence nos próximos 2 meses
   var limiteProx = addMeses(hoje(), 2);
   var proxTodas = D.lancamentos.filter(function(l){
-    return l.forma==="conta" && l.status!=="pago" && l.tipo==="despesa"
+    return !ehInfo(l) && l.forma==="conta" && l.status!=="pago" && l.tipo==="despesa"
            && String(l.data).slice(0,10) <= limiteProx;
   }).sort((a,b)=> a.data < b.data ? -1 : 1);
   var prox = proxTodas.slice(0,6);
@@ -566,6 +584,9 @@ function vPainel(){
     kpi("Despesas do mês", BRL(despesas), m.filter(l=>l.tipo==="despesa").length+" lançamento(s)", "neg") +
     kpi("Resultado do mês", BRL(receitas-despesas), receitas-despesas>=0?"Sobrou":"Faltou", receitas-despesas>=0?"pos":"neg") +
   '</div>'+
+  (info.length ? '<p class="legenda" style="margin:-8px 0 16px">'+info.length+
+    ' lançamento(s) informativo(s) no mês, somando '+BRL(info.reduce((a,l)=>a+Number(l.valor),0))+
+    ' — não entram em nenhum total.</p>' : "")+
 
   '<div class="grid2">'+
     '<div class="card"><div class="card-h"><h3>Gastos por categoria</h3>'+
@@ -632,11 +653,14 @@ function filtrar(lista){
 function vLancamentos(){
   var f = estado.filtros;
   var lista = filtrar(D.lancamentos);
-  var rec = lista.filter(l=>l.tipo==="receita").reduce((a,l)=>a+Number(l.valor),0);
-  var des = lista.filter(l=>l.tipo==="despesa").reduce((a,l)=>a+Number(l.valor),0);
+  var contam = valem(lista);
+  var rec = contam.filter(l=>l.tipo==="receita").reduce((a,l)=>a+Number(l.valor),0);
+  var des = contam.filter(l=>l.tipo==="despesa").reduce((a,l)=>a+Number(l.valor),0);
+  var nInfo = lista.length - contam.length;
 
   return '<div class="topo"><div><h1>Lançamentos</h1>'+
-    '<p class="legenda">'+lista.length+' lançamento(s) · receitas '+BRL(rec)+' · despesas '+BRL(des)+'</p></div>'+
+    '<p class="legenda">'+lista.length+' lançamento(s) · receitas '+BRL(rec)+' · despesas '+BRL(des)+
+      (nInfo ? ' · '+nInfo+' informativo(s) fora da conta' : "")+'</p></div>'+
     '<div class="acoes"><button class="btn" data-act="novaRecorrencia">+ Recorrente</button>'+
     '<button class="btn primary" data-act="novoLanc">+ Lançamento</button></div></div>'+
 
@@ -646,7 +670,7 @@ function vLancamentos(){
       selFiltro("tipo","Tipo",[["","Todos"],["receita","Receitas"],["despesa","Despesas"]],f.tipo)+
       selFiltro("forma","Forma",[["","Todas"],["conta","Conta"],["cartao","Cartão"]],f.forma)+
       selFiltro("status","Situação",[["","Todas"],["pago","Pago"],["pendente","Pendente"],
-        ["vencido","Vencido"],["fatura","Na fatura"]],f.status)+
+        ["vencido","Vencido"],["fatura","Na fatura"],["informativo","Informativo"]],f.status)+
       selFiltro("categoria","Categoria",[["","Todas"]].concat(D.categorias.map(c=>[c.id,c.nome])),f.categoria)+
       '<div><button class="btn" data-act="limparFiltros" style="width:100%">Limpar filtros</button></div>'+
     '</div></div></div>'+
@@ -671,10 +695,12 @@ function linhaLanc(l){
       (l.recorrencia_id?'<div class="legenda">recorrente</div>':"")+'</td>'+
     '<td>'+esc(nomeCat(l))+'</td>'+
     '<td>'+esc(origem)+'</td>'+
-    '<td class="r num '+(l.tipo==="receita"?"pos":"")+'">'+(l.tipo==="receita"?"+":"−")+BRL(l.valor).replace("R$","R$")+'</td>'+
+    '<td class="r num '+(ehInfo(l) ? "valor-info" : (l.tipo==="receita"?"pos":""))+'">'+
+      (l.tipo==="receita"?"+":"−")+BRL(l.valor)+'</td>'+
     '<td>'+selo(st)+'</td>'+
     '<td class="r"><div class="acoes" style="justify-content:flex-end">'+
-      (l.forma==="conta" && l.status!=="pago" ? '<button class="btn sm" data-act="pagarLanc" data-id="'+l.id+'">Pagar</button>' : "")+
+      (!ehInfo(l) && l.forma==="conta" && l.status!=="pago" ? '<button class="btn sm" data-act="pagarLanc" data-id="'+l.id+'">Pagar</button>' : "")+
+      '<button class="btn sm" data-act="editarLanc" data-id="'+l.id+'">Editar</button>'+
       '<button class="btn sm" data-act="apagarLanc" data-id="'+l.id+'">Excluir</button>'+
     '</div></td></tr>';
 }
@@ -711,6 +737,7 @@ function vContas(){
           '<td class="r num forte '+(s<0?"neg":"")+'">'+BRL(s)+'</td>'+
           '<td class="r"><div class="acoes" style="justify-content:flex-end">'+
             '<button class="btn sm" data-act="verExtrato" data-id="'+c.id+'">Extrato</button>'+
+            '<button class="btn sm" data-act="editarConta" data-id="'+c.id+'">Editar</button>'+
             '<button class="btn sm" data-act="apagarConta" data-id="'+c.id+'">Excluir</button>'+
           '</div></td></tr>';
       }).join("")+'</tbody></table></div></div>'
@@ -726,13 +753,15 @@ function vExtrato(){
               .slice().sort(function(a,b){ return a.data < b.data ? -1 : 1; });
   var acum = Number(c.saldo_inicial)||0;
   var linhas = lista.map(function(l){
+    var info = ehInfo(l);
     var val = (l.tipo==="receita"?1:-1)*Number(l.valor);
-    if(l.status==="pago") acum += val;
+    if(!info && l.status==="pago") acum += val;
     return '<tr><td class="num">'+dBR(l.data)+'</td>'+
       '<td><span class="forte">'+esc(l.descricao)+'</span><div class="legenda">'+esc(nomeCat(l))+'</div></td>'+
-      '<td class="r num '+(l.tipo==="receita"?"pos":"neg")+'">'+(l.tipo==="receita"?"+":"−")+BRL(l.valor)+'</td>'+
+      '<td class="r num '+(info ? "valor-info" : (l.tipo==="receita"?"pos":"neg"))+'">'+
+        (l.tipo==="receita"?"+":"−")+BRL(l.valor)+'</td>'+
       '<td>'+selo(statusLanc(l))+'</td>'+
-      '<td class="r num forte">'+(l.status==="pago"?BRL(acum):"—")+'</td></tr>';
+      '<td class="r num forte">'+((!info && l.status==="pago")?BRL(acum):"—")+'</td></tr>';
   }).join("");
 
   return '<div class="topo"><div><h1>Extrato · '+esc(c.nome)+'</h1>'+
@@ -770,6 +799,7 @@ function vCartoes(){
         '<div class="d">'+esc(c.emissor||"—")+' · fecha dia '+c.dia_fechamento+' · vence dia '+c.dia_vencimento+'</div>'+
         '<div class="acoes" style="margin-top:12px">'+
           '<button class="btn sm" data-act="verFaturas" data-id="'+c.id+'">Faturas</button>'+
+          '<button class="btn sm" data-act="editarCartao" data-id="'+c.id+'">Editar</button>'+
           '<button class="btn sm" data-act="apagarCartao" data-id="'+c.id+'">Excluir</button>'+
         '</div></div>';
     }).join("")+'</div>'
@@ -828,9 +858,11 @@ function vFaturas(){
           '<td class="forte">'+esc(l.descricao)+'</td>'+
           '<td>'+esc(nomeCat(l))+'</td>'+
           '<td class="num">'+(l.parcela_total>1 ? l.parcela_num+"/"+l.parcela_total : "à vista")+'</td>'+
-          '<td class="r num">'+BRL(l.valor)+'</td>'+
+          '<td class="r num '+(ehInfo(l)?"valor-info":"")+'">'+BRL(l.valor)+(ehInfo(l)?' '+selo("informativo"):"")+'</td>'+
           '<td class="r">'+(atual.f.status!=="paga" ?
-            '<button class="btn sm" data-act="apagarLanc" data-id="'+l.id+'">Excluir</button>' : "")+'</td></tr>';
+            '<div class="acoes" style="justify-content:flex-end">'+
+            '<button class="btn sm" data-act="editarLanc" data-id="'+l.id+'">Editar</button>'+
+            '<button class="btn sm" data-act="apagarLanc" data-id="'+l.id+'">Excluir</button></div>' : "")+'</td></tr>';
       }).join("")+'</tbody>'+
       '<tfoot><tr><td colspan="4">Total</td><td class="r num">'+BRL(atual.total)+'</td><td></td></tr></tfoot>'+
       '</table></div>' : '<div class="vazio">Nenhuma compra nesta fatura.</div>')+
@@ -865,7 +897,8 @@ function vCategorias(){
    Relatórios
 =================================================================== */
 function vRelatorios(){
-  var m = D.lancamentos.filter(l=>ym(l.data)===estado.mes);
+  var m = valem(D.lancamentos.filter(l=>ym(l.data)===estado.mes));
+  var infoMes = D.lancamentos.filter(l=>ym(l.data)===estado.mes && ehInfo(l));
   function agrupar(chave, rotulo){
     var mapa = {};
     m.forEach(function(l){
@@ -890,6 +923,9 @@ function vRelatorios(){
   }
 
   return topoMes("Relatórios","Consolidado de "+mesBR(estado.mes))+
+    (infoMes.length ? '<p class="legenda" style="margin:-8px 0 16px">Fora destes números: '+
+      infoMes.length+' lançamento(s) informativo(s), '+
+      BRL(infoMes.reduce((a,l)=>a+Number(l.valor),0))+'.</p>' : "")+
     '<div class="card"><div class="card-h"><h3>Por categoria</h3></div>'+
       agrupar(function(l){ var c=categoria(l.categoria_id); return c?c.nome:"Sem categoria"; },"Categoria")+'</div>'+
     '<div class="card"><div class="card-h"><h3>Por subcategoria</h3></div>'+
@@ -941,43 +977,114 @@ function opcoesSub(catId, sel){
 }
 function opcoesConta(sel){
   return '<option value="">— escolha —</option>'+
-    D.contas.map(c=>'<option value="'+c.id+'"'+(c.id===sel?" selected":"")+'>'+esc(c.nome)+' ('+BRL(saldoConta(c.id))+')</option>').join("");
+    D.contas.filter(c=>c.ativo!==false || c.id===sel)
+      .map(c=>'<option value="'+c.id+'"'+(c.id===sel?" selected":"")+'>'+esc(c.nome)+' ('+BRL(saldoConta(c.id))+')</option>').join("");
 }
 function opcoesCartao(sel){
   return '<option value="">— escolha —</option>'+
-    D.cartoes.map(c=>'<option value="'+c.id+'"'+(c.id===sel?" selected":"")+'>'+esc(c.nome)+'</option>').join("");
+    D.cartoes.filter(c=>c.ativo!==false || c.id===sel)
+      .map(c=>'<option value="'+c.id+'"'+(c.id===sel?" selected":"")+'>'+esc(c.nome)+'</option>').join("");
 }
 
-function corpoLancamento(){
+function sel(a, b){ return a===b ? " selected" : ""; }
+
+/* ---- conta bancária ---- */
+function corpoConta(c){
+  c = c || {};
+  return '<div class="campo"><label class="rotulo">Nome</label>'+
+      '<input id="cNome" placeholder="ex.: Conta corrente" value="'+esc(c.nome||"")+'"></div>'+
+    '<div class="linha l2">'+
+      '<div class="campo"><label class="rotulo">Instituição</label>'+
+        '<input id="cInst" placeholder="ex.: Banco do Brasil" value="'+esc(c.instituicao||"")+'"></div>'+
+      '<div class="campo"><label class="rotulo">Tipo</label><select id="cTipo">'+
+        TIPOS_CONTA.map(t=>'<option value="'+t[0]+'"'+sel(c.tipo||"corrente",t[0])+'>'+t[1]+'</option>').join("")+
+      '</select></div>'+
+    '</div>'+
+    '<div class="campo"><label class="rotulo">Saldo inicial (R$)</label>'+
+      '<input id="cSaldo" type="number" step="0.01" value="'+(c.saldo_inicial!=null?Number(c.saldo_inicial):0)+'"></div>'+
+    (c.id ? '<label class="caixa"><input type="checkbox" id="cAtivo"'+(c.ativo!==false?" checked":"")+'>'+
+      '<span><b>Conta ativa</b><br><span class="legenda">Contas inativas saem do saldo total.</span></span></label>' : "");
+}
+function lerConta(d){
+  var nome=$("#cNome",d).value.trim();
+  if(!nome) falha("Informe o nome da conta.");
+  var ativo = $("#cAtivo",d) ? $("#cAtivo",d).checked : true;
+  return { nome:nome, instituicao:$("#cInst",d).value.trim()||null,
+           tipo:$("#cTipo",d).value, saldo_inicial:Number($("#cSaldo",d).value)||0, ativo:ativo };
+}
+
+/* ---- cartão de crédito ---- */
+function corpoCartao(c){
+  c = c || {};
+  return '<div class="campo"><label class="rotulo">Nome</label>'+
+      '<input id="kNome" placeholder="ex.: Cartão principal" value="'+esc(c.nome||"")+'"></div>'+
+    '<div class="linha l2">'+
+      '<div class="campo"><label class="rotulo">Banco / emissor</label>'+
+        '<input id="kEmissor" placeholder="ex.: Nubank" value="'+esc(c.emissor||"")+'"></div>'+
+      '<div class="campo"><label class="rotulo">Limite total (R$)</label>'+
+        '<input id="kLimite" type="number" step="0.01" min="0" value="'+(c.limite_total!=null?Number(c.limite_total):0)+'"></div>'+
+    '</div>'+
+    '<div class="linha l2">'+
+      '<div class="campo"><label class="rotulo">Dia do fechamento</label>'+
+        '<input id="kFech" type="number" min="1" max="31" value="'+(c.dia_fechamento||1)+'"></div>'+
+      '<div class="campo"><label class="rotulo">Dia do vencimento</label>'+
+        '<input id="kVenc" type="number" min="1" max="31" value="'+(c.dia_vencimento||10)+'"></div>'+
+    '</div>'+
+    (c.id ? '<p class="legenda" style="margin:-8px 0 14px">Mudar os dias vale para as próximas compras; '+
+      'as faturas já abertas continuam com as datas de quando foram criadas.</p>'+
+      '<label class="caixa"><input type="checkbox" id="kAtivo"'+(c.ativo!==false?" checked":"")+'>'+
+      '<span><b>Cartão ativo</b><br><span class="legenda">Cartões inativos somem da lista de lançamento.</span></span></label>' : "");
+}
+function lerCartao(d){
+  var nome=$("#kNome",d).value.trim();
+  var fech=parseInt($("#kFech",d).value,10), venc=parseInt($("#kVenc",d).value,10);
+  if(!nome) falha("Informe o nome do cartão.");
+  if(!(fech>=1&&fech<=31)) falha("Dia de fechamento inválido.");
+  if(!(venc>=1&&venc<=31)) falha("Dia de vencimento inválido.");
+  return { nome:nome, emissor:$("#kEmissor",d).value.trim()||null,
+           limite_total:Number($("#kLimite",d).value)||0,
+           dia_fechamento:fech, dia_vencimento:venc,
+           ativo: $("#kAtivo",d) ? $("#kAtivo",d).checked : true };
+}
+function corpoLancamento(l){
+  l = l || {};
+  var tipo = l.tipo || "despesa", forma = l.forma || "conta";
   return '<div class="linha l2">'+
       '<div class="campo"><label class="rotulo">Tipo</label><select id="fTipo">'+
-        '<option value="despesa">Despesa</option><option value="receita">Receita</option></select></div>'+
+        '<option value="despesa"'+sel(tipo,"despesa")+'>Despesa</option>'+
+        '<option value="receita"'+sel(tipo,"receita")+'>Receita</option></select></div>'+
       '<div class="campo"><label class="rotulo">Forma</label><select id="fForma">'+
-        '<option value="conta">Conta bancária</option><option value="cartao">Cartão de crédito</option></select></div>'+
+        '<option value="conta"'+sel(forma,"conta")+'>Conta bancária</option>'+
+        '<option value="cartao"'+sel(forma,"cartao")+'>Cartão de crédito</option></select></div>'+
     '</div>'+
-    '<div class="campo"><label class="rotulo">Descrição</label><input id="fDesc" placeholder="ex.: Supermercado"></div>'+
+    '<div class="campo"><label class="rotulo">Descrição</label><input id="fDesc" placeholder="ex.: Supermercado" value="'+esc(l.descricao||"")+'"></div>'+
     '<div class="linha l2">'+
-      '<div class="campo"><label class="rotulo">Valor (R$)</label><input id="fValor" type="number" step="0.01" min="0.01" placeholder="0,00"></div>'+
-      '<div class="campo"><label class="rotulo">Data</label><input id="fData" type="date" value="'+hoje()+'"></div>'+
+      '<div class="campo"><label class="rotulo">Valor (R$)</label><input id="fValor" type="number" step="0.01" min="0.01" placeholder="0,00" value="'+(l.valor!=null?Number(l.valor):"")+'"></div>'+
+      '<div class="campo"><label class="rotulo">Data</label><input id="fData" type="date" value="'+(l.data?String(l.data).slice(0,10):hoje())+'"></div>'+
     '</div>'+
     '<div class="linha l2">'+
-      '<div class="campo"><label class="rotulo">Categoria</label><select id="fCat">'+opcoesCategoria("despesa")+'</select></div>'+
-      '<div class="campo"><label class="rotulo">Subcategoria</label><select id="fSub"><option value="">— nenhuma —</option></select></div>'+
+      '<div class="campo"><label class="rotulo">Categoria</label><select id="fCat">'+opcoesCategoria(tipo, l.categoria_id)+'</select></div>'+
+      '<div class="campo"><label class="rotulo">Subcategoria</label><select id="fSub">'+opcoesSub(l.categoria_id, l.subcategoria_id)+'</select></div>'+
     '</div>'+
-    '<div class="campo" id="blocoConta"><label class="rotulo">Conta bancária</label><select id="fConta">'+opcoesConta()+'</select></div>'+
+    '<div class="campo" id="blocoConta"><label class="rotulo">Conta bancária</label><select id="fConta">'+opcoesConta(l.conta_id)+'</select></div>'+
     '<div id="blocoCartao" style="display:none">'+
-      '<div class="campo"><label class="rotulo">Cartão</label><select id="fCartao">'+opcoesCartao()+'</select></div>'+
+      '<div class="campo"><label class="rotulo">Cartão</label><select id="fCartao">'+opcoesCartao(l.cartao_id)+'</select></div>'+
       '<div class="linha l2">'+
-        '<div class="campo"><label class="rotulo">Parcelas</label><input id="fParcelas" type="number" min="1" max="60" value="1"></div>'+
+        '<div class="campo" id="blocoParcelas"><label class="rotulo">Parcelas</label><input id="fParcelas" type="number" min="1" max="60" value="1"></div>'+
         '<div class="campo"><label class="rotulo">&nbsp;</label><div class="legenda" id="infoCartao">—</div></div>'+
       '</div>'+
     '</div>'+
     '<div class="campo"><label class="rotulo">Situação</label><select id="fStatus">'+
-      '<option value="pago">Já pago / recebido</option><option value="pendente">Pendente</option></select></div>'+
-    '<div class="campo"><label class="rotulo">Observação</label><textarea id="fObs"></textarea></div>';
+      '<option value="pago"'+sel(l.status,"pago")+'>Já pago / recebido</option>'+
+      '<option value="pendente"'+sel(l.status||"pendente","pendente")+'>Pendente</option></select></div>'+
+    '<label class="caixa"><input type="checkbox" id="fInfo"'+(l.informativo?" checked":"")+'>'+
+      '<span><b>Apenas informativo</b><br><span class="legenda">Fica registrado, mas não desconta da conta '+
+      'nem entra no limite, na fatura, no painel ou nos relatórios.</span></span></label>'+
+    '<div class="campo"><label class="rotulo">Observação</label><textarea id="fObs">'+esc(l.observacao||"")+'</textarea></div>';
 }
 
-function ligarFormLanc(d){
+function ligarFormLanc(d, l){
+  var subInicial = l && l.subcategoria_id ? l.subcategoria_id : "";
   function sync(){
     var forma = $("#fForma",d).value, tipo = $("#fTipo",d).value;
     // receita só entra em conta
@@ -989,7 +1096,8 @@ function ligarFormLanc(d){
     var cat = $("#fCat",d);
     var atual = cat.value;
     cat.innerHTML = opcoesCategoria(tipo, atual);
-    $("#fSub",d).innerHTML = opcoesSub(cat.value);
+    $("#fSub",d).innerHTML = opcoesSub(cat.value, subInicial);
+    subInicial = "";   // só na primeira montagem
     var c = cartao($("#fCartao",d).value);
     $("#infoCartao",d).textContent = c
       ? "Disponível "+BRL(limiteDisponivel(c.id))+" · fecha dia "+c.dia_fechamento
@@ -1022,7 +1130,7 @@ var ACOES = {
       var tipo=$("#fTipo",d).value, forma=$("#fForma",d).value;
       var desc=$("#fDesc",d).value.trim(), valor=Number($("#fValor",d).value);
       var data=$("#fData",d).value, cat=$("#fCat",d).value, sub=$("#fSub",d).value;
-      var obs=$("#fObs",d).value.trim();
+      var obs=$("#fObs",d).value.trim(), info=$("#fInfo",d).checked;
 
       if(!desc) falha("Informe a descrição.");
       if(!(valor>0)) falha("Informe um valor maior que zero.");
@@ -1036,7 +1144,7 @@ var ACOES = {
           tipo:tipo, forma:"conta", descricao:desc, valor:valor, data:data,
           categoria_id:cat, subcategoria_id:sub||null, conta_id:contaId,
           status:$("#fStatus",d).value, pago_em: $("#fStatus",d).value==="pago"?data:null,
-          observacao:obs||null
+          observacao:obs||null, informativo:info
         }))[0];
         D.lancamentos.push(novo);
         return;
@@ -1048,7 +1156,7 @@ var ACOES = {
       var c = cartao(cartaoId);
       var n = Math.max(1, Math.min(60, parseInt($("#fParcelas",d).value,10)||1));
       var disp = limiteDisponivel(c.id);
-      if(valor > disp){
+      if(!info && valor > disp){
         if(!confirm("Esta compra de "+BRL(valor)+" ultrapassa o limite disponível de "+BRL(disp)+
                     " neste cartão.\n\nLançar mesmo assim?")) return false;
       }
@@ -1064,7 +1172,7 @@ var ACOES = {
           data: i===0 ? data : cic.fechamento,
           categoria_id:cat, subcategoria_id:sub||null, cartao_id:c.id, fatura_id:fid,
           status:"pendente", compra_id:compraId, parcela_num:i+1, parcela_total:n,
-          observacao:obs||null
+          observacao:obs||null, informativo:info
         });
       }
       var ins = await API.inserir("fin_lancamentos", linhas);
@@ -1102,13 +1210,77 @@ var ACOES = {
         categoria_id:cat, subcategoria_id:sub||null,
         conta_id: forma==="conta" ? $("#fConta",d).value : null,
         cartao_id: forma==="cartao" ? $("#fCartao",d).value : null,
-        dia:dia, inicio:inicio, fim:fim||null, ativo:true
+        dia:dia, inicio:inicio, fim:fim||null, ativo:true,
+        informativo: $("#fInfo",d).checked
       }))[0];
       D.recorrencias.push(nova);
       await gerarRecorrencias();
     }, "Criar recorrência");
     ligarFormLanc(d);
     $("#fData",d).parentNode.style.display="none";
+  },
+
+  editarLanc: function(b){
+    var l = D.lancamentos.filter(x=>x.id===b.dataset.id)[0];
+    if(!l) return;
+    if(l.pagamento_fatura_id)
+      return alert("Este lançamento é o pagamento de uma fatura. Para mudá-lo, "+
+                   "desfaça o pagamento na tela de Faturas.");
+
+    var parcelada = l.forma==="cartao" && l.parcela_total > 1;
+    var d = abrirDialogo("Editar lançamento", corpoLancamento(l), async function(d){
+      var desc=$("#fDesc",d).value.trim(), valor=Number($("#fValor",d).value);
+      var cat=$("#fCat",d).value, sub=$("#fSub",d).value;
+      var obs=$("#fObs",d).value.trim(), info=$("#fInfo",d).checked;
+      var data=$("#fData",d).value;
+
+      if(!desc) falha("Informe a descrição.");
+      if(!(valor>0)) falha("Informe um valor maior que zero.");
+      if(!cat) falha("Escolha uma categoria — lançamento sem categoria não é aceito.");
+      if(!parcelada && !data) falha("Informe a data.");
+
+      var campos = { descricao:desc, valor:valor, categoria_id:cat,
+                     subcategoria_id:sub||null, observacao:obs||null, informativo:info };
+
+      if(parcelada){
+        // só a parcela escolhida muda; data e fatura seguem o ciclo original
+      } else if(l.forma==="conta"){
+        var contaId=$("#fConta",d).value;
+        if(!contaId) falha("Escolha a conta bancária.");
+        var st = $("#fStatus",d).value;
+        campos.tipo = $("#fTipo",d).value;
+        campos.data = data;
+        campos.conta_id = contaId;
+        campos.status = st;
+        campos.pago_em = st==="pago" ? (l.pago_em || data) : null;
+      } else {
+        var cartaoId=$("#fCartao",d).value;
+        if(!cartaoId) falha("Escolha o cartão de crédito.");
+        var c = cartao(cartaoId);
+        campos.data = data;
+        campos.cartao_id = cartaoId;
+        if(cartaoId !== l.cartao_id || data !== String(l.data).slice(0,10)){
+          campos.fatura_id = await garantirFatura(c, faturaDaCompra(c, data));
+        }
+        var fAtual = campos.fatura_id ? fatura(campos.fatura_id) : fatura(l.fatura_id);
+        if(fAtual && fAtual.status==="paga")
+          falha("Esta compra cairia numa fatura já paga. Escolha outra data.");
+      }
+
+      await API.atualizar("fin_lancamentos", l.id, campos);
+      Object.assign(l, campos);
+    }, "Salvar alterações");
+
+    ligarFormLanc(d, l);
+    // a forma não muda numa edição: trocar conta↔cartão é excluir e lançar de novo
+    $("#fForma",d).disabled = true;
+    $("#blocoParcelas",d).style.display = "none";
+    if(parcelada){
+      $("#fData",d).parentNode.style.display = "none";
+      $("#fCartao",d).parentNode.style.display = "none";
+      $("#infoCartao",d).textContent = "Parcela "+l.parcela_num+"/"+l.parcela_total+
+        " — data e fatura seguem o ciclo da compra";
+    }
   },
 
   pagarLanc: async function(b){
@@ -1132,23 +1304,19 @@ var ACOES = {
   },
 
   novaConta: function(){
-    abrirDialogo("Nova conta bancária",
-      '<div class="campo"><label class="rotulo">Nome</label><input id="cNome" placeholder="ex.: Conta corrente"></div>'+
-      '<div class="linha l2">'+
-        '<div class="campo"><label class="rotulo">Instituição</label><input id="cInst" placeholder="ex.: Banco do Brasil"></div>'+
-        '<div class="campo"><label class="rotulo">Tipo</label><select id="cTipo">'+
-          TIPOS_CONTA.map(t=>'<option value="'+t[0]+'">'+t[1]+'</option>').join("")+'</select></div>'+
-      '</div>'+
-      '<div class="campo"><label class="rotulo">Saldo inicial (R$)</label><input id="cSaldo" type="number" step="0.01" value="0"></div>',
-      async function(d){
-        var nome=$("#cNome",d).value.trim();
-        if(!nome) falha("Informe o nome da conta.");
-        var nova = (await API.inserir("fin_contas", {
-          nome:nome, instituicao:$("#cInst",d).value.trim()||null,
-          tipo:$("#cTipo",d).value, saldo_inicial:Number($("#cSaldo",d).value)||0, ativo:true
-        }))[0];
-        D.contas.push(nova);
-      });
+    abrirDialogo("Nova conta bancária", corpoConta(), async function(d){
+      var campos = lerConta(d);
+      D.contas.push((await API.inserir("fin_contas", campos))[0]);
+    });
+  },
+
+  editarConta: function(b){
+    var c = conta(b.dataset.id); if(!c) return;
+    abrirDialogo("Editar conta bancária", corpoConta(c), async function(d){
+      var campos = lerConta(d);
+      await API.atualizar("fin_contas", c.id, campos);
+      Object.assign(c, campos);
+    }, "Salvar alterações");
   },
 
   apagarConta: async function(b){
@@ -1165,29 +1333,18 @@ var ACOES = {
   voltarContas: function(){ estado.contaExtrato=null; render(); },
 
   novoCartao: function(){
-    abrirDialogo("Novo cartão de crédito",
-      '<div class="campo"><label class="rotulo">Nome</label><input id="kNome" placeholder="ex.: Cartão principal"></div>'+
-      '<div class="linha l2">'+
-        '<div class="campo"><label class="rotulo">Banco / emissor</label><input id="kEmissor" placeholder="ex.: Nubank"></div>'+
-        '<div class="campo"><label class="rotulo">Limite total (R$)</label><input id="kLimite" type="number" step="0.01" min="0" value="0"></div>'+
-      '</div>'+
-      '<div class="linha l2">'+
-        '<div class="campo"><label class="rotulo">Dia do fechamento</label><input id="kFech" type="number" min="1" max="31" value="1"></div>'+
-        '<div class="campo"><label class="rotulo">Dia do vencimento</label><input id="kVenc" type="number" min="1" max="31" value="10"></div>'+
-      '</div>',
-      async function(d){
-        var nome=$("#kNome",d).value.trim();
-        var fech=parseInt($("#kFech",d).value,10), venc=parseInt($("#kVenc",d).value,10);
-        if(!nome) falha("Informe o nome do cartão.");
-        if(!(fech>=1&&fech<=31)) falha("Dia de fechamento inválido.");
-        if(!(venc>=1&&venc<=31)) falha("Dia de vencimento inválido.");
-        var novo = (await API.inserir("fin_cartoes", {
-          nome:nome, emissor:$("#kEmissor",d).value.trim()||null,
-          limite_total:Number($("#kLimite",d).value)||0,
-          dia_fechamento:fech, dia_vencimento:venc, ativo:true
-        }))[0];
-        D.cartoes.push(novo);
-      });
+    abrirDialogo("Novo cartão de crédito", corpoCartao(), async function(d){
+      D.cartoes.push((await API.inserir("fin_cartoes", lerCartao(d)))[0]);
+    });
+  },
+
+  editarCartao: function(b){
+    var c = cartao(b.dataset.id); if(!c) return;
+    abrirDialogo("Editar cartão de crédito", corpoCartao(c), async function(d){
+      var campos = lerCartao(d);
+      await API.atualizar("fin_cartoes", c.id, campos);
+      Object.assign(c, campos);
+    }, "Salvar alterações");
   },
 
   apagarCartao: async function(b){
