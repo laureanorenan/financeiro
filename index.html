@@ -112,6 +112,26 @@ ul.anexos li{display:flex;align-items:center;gap:8px;padding:6px 10px;
 ul.anexos .nome{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
 ul.anexos .clipe{flex:none;opacity:.7}
 ul.anexos .acoes{flex:none;display:flex;gap:6px}
+/* ícone com cor: selo redondo */
+.chip-ico{display:inline-flex;align-items:center;justify-content:center;flex:none;
+  width:28px;height:28px;border-radius:var(--raio-2);color:var(--ink-500);
+  background:var(--surface-100);border:1px solid var(--border-subtle);vertical-align:middle}
+.chip-ico.sm{width:22px;height:22px;border-radius:6px}
+.com-ico .chip-ico{width:24px;height:24px}
+.com-ico{display:flex;align-items:center;gap:10px;min-width:0}
+/* escolha de ícone e de cor */
+.grade-ico{display:grid;grid-template-columns:repeat(auto-fill,minmax(38px,1fr));gap:6px;
+  max-height:164px;overflow-y:auto;padding:8px;border:1px solid var(--border-subtle);
+  border-radius:var(--raio-2);background:var(--surface-100)}
+.op-ico{display:grid;place-items:center;height:36px;border-radius:8px;cursor:pointer;
+  border:1px solid transparent;background:var(--surface-000);color:var(--ink-700)}
+.op-ico:hover{border-color:var(--border-strong)}
+.op-ico.on{border-color:var(--surface-brand);box-shadow:0 0 0 1px var(--surface-brand);color:var(--ink-900)}
+.grade-cor{display:flex;flex-wrap:wrap;gap:8px}
+.op-cor{width:28px;height:28px;border-radius:var(--raio-pill);cursor:pointer;border:2px solid transparent;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+.op-cor.on{border-color:var(--ink-900)}
+.previa-ap{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:13px;color:var(--ink-500)}
 .clipe-lista{margin-left:6px;font-size:12px;white-space:nowrap;cursor:pointer;
   background:none;border:0;padding:0;color:var(--chart-1);font-family:inherit}
 .clipe-lista:hover{text-decoration:underline}
@@ -411,6 +431,71 @@ function nomeCat(l){
   return c.nome + (s ? " · " + s.nome : "");
 }
 
+/* ===================================================================
+   Aparência: ícone e cor de categorias, contas e cartões
+=================================================================== */
+var ICONES = {
+  etiqueta:  '<path d="M3 4h7l7 7-6 6-7-7z"/><circle cx="7" cy="8" r="1.2"/>',
+  casa:      '<path d="M3 17V8.5L10 4l7 4.5V17z"/><path d="M8 17v-5h4v5"/>',
+  mercado:   '<path d="M2 4h2l2.2 8.5h8.3L17 7H5"/><circle cx="8" cy="16" r="1.3"/><circle cx="14.5" cy="16" r="1.3"/>',
+  restaurante:'<path d="M5 3v5a1.5 1.5 0 003 0V3"/><path d="M6.5 8v9"/><path d="M14.5 3c-1.5 1.2-1.5 5.3 0 6.5V17"/>',
+  cafe:      '<path d="M4 7h9v5a3 3 0 01-3 3H7a3 3 0 01-3-3z"/><path d="M13 8h1.5a2 2 0 010 4H13"/><path d="M6 3v1.5M9 3v1.5"/>',
+  carro:     '<path d="M4 13l1.3-4.2A2 2 0 017.2 7.4h5.6a2 2 0 011.9 1.4L16 13"/><path d="M3.5 13h13v3h-2.5v-1h-8v1H3.5z"/>',
+  combustivel:'<path d="M4 17V5a1 1 0 011-1h5a1 1 0 011 1v12"/><path d="M3 17h9"/><path d="M11 9h2.5a1.5 1.5 0 011.5 1.5V14a1.2 1.2 0 002.4 0V8l-2-2"/>',
+  onibus:    '<path d="M4 4h12v9H4z"/><path d="M4 9h12"/><path d="M5 13v2M15 13v2"/><circle cx="7" cy="11" r=".8"/><circle cx="13" cy="11" r=".8"/>',
+  aviao:     '<path d="M2 11l16-6-6 15-2.2-6.3z"/>',
+  saude:     '<path d="M10 16s-6-3.7-6-7.6A3.4 3.4 0 0110 6a3.4 3.4 0 016 2.4C16 12.3 10 16 10 16z"/>',
+  remedio:   '<path d="M5.9 11.3l5.4-5.4a3.1 3.1 0 014.4 4.4l-5.4 5.4a3.1 3.1 0 01-4.4-4.4z"/><path d="M8.1 9.1l4.4 4.4"/>',
+  escola:    '<path d="M10 4l8 3.5-8 3.5-8-3.5z"/><path d="M6 10v4c0 1.2 1.9 2.2 4 2.2s4-1 4-2.2v-4"/>',
+  livro:     '<path d="M3 4.5h4.5A2.5 2.5 0 0110 7v9a2.2 2.2 0 00-2.2-2H3z"/><path d="M17 4.5h-4.5A2.5 2.5 0 0010 7v9a2.2 2.2 0 012.2-2H17z"/>',
+  trabalho:  '<rect x="2.5" y="6" width="15" height="10" rx="1.5"/><path d="M7 6V4.5A1.5 1.5 0 018.5 3h3A1.5 1.5 0 0113 4.5V6"/><path d="M2.5 10h15"/>',
+  salario:   '<rect x="2.5" y="5.5" width="15" height="9" rx="1.5"/><circle cx="10" cy="10" r="2.2"/>',
+  presente:  '<rect x="3" y="8.5" width="14" height="8" rx="1"/><path d="M2.5 5.5h15v3h-15z"/><path d="M10 5.5v11"/><path d="M10 5.5S8.8 3 7.2 3a1.8 1.8 0 000 3.6M10 5.5S11.2 3 12.8 3a1.8 1.8 0 010 3.6"/>',
+  luz:       '<path d="M10 3a4.6 4.6 0 00-2.8 8.3V14h5.6v-2.7A4.6 4.6 0 0010 3z"/><path d="M8.2 16.5h3.6"/>',
+  agua:      '<path d="M10 3.2s5 5.4 5 8.3a5 5 0 01-10 0C5 8.6 10 3.2 10 3.2z"/>',
+  internet:  '<path d="M3.2 8a9.5 9.5 0 0113.6 0"/><path d="M6 11a5.6 5.6 0 018 0"/><circle cx="10" cy="14.5" r="1.2"/>',
+  telefone:  '<rect x="6" y="2.5" width="8" height="15" rx="1.6"/><path d="M8.8 15.2h2.4"/>',
+  tv:        '<rect x="2.5" y="4.5" width="15" height="9.5" rx="1.5"/><path d="M7 17h6"/>',
+  academia:  '<path d="M3 8v4M5.2 6.5v7M14.8 6.5v7M17 8v4"/><path d="M5.2 10h9.6"/>',
+  pet:       '<circle cx="6" cy="7" r="1.6"/><circle cx="10" cy="5.6" r="1.6"/><circle cx="14" cy="7" r="1.6"/><path d="M10 9.5c2.6 0 4.5 2 4.5 3.8S12.6 16.5 10 16.5 5.5 15.1 5.5 13.3 7.4 9.5 10 9.5z"/>',
+  roupa:     '<path d="M7.2 3.5L3 6l1.8 2.4L6.4 7.2V16.5h7.2V7.2l1.6 1.2L17 6l-4.2-2.5a2.9 2.9 0 01-5.6 0z"/>',
+  ferramenta:'<path d="M12.6 3.4a4 4 0 00-4.9 5.2L3 13.3 6.7 17l4.7-4.7a4 4 0 005.2-4.9l-2.6 2.6-2.1-2.1z"/>',
+  cofre:     '<rect x="2.5" y="5" width="15" height="10" rx="1.5"/><circle cx="10" cy="10" r="2.6"/><path d="M10 7.4v5.2M7.4 10h5.2"/>',
+  banco:     '<path d="M2.5 8L10 4l7.5 4"/><path d="M4.5 8.5v6.5M8 8.5v6.5M12 8.5v6.5M15.5 8.5v6.5"/><path d="M2.5 17h15"/>',
+  cartao:    '<rect x="2" y="5" width="16" height="10" rx="1.6"/><path d="M2 8.5h16"/><path d="M5 12h3"/>',
+  carteira:  '<path d="M3 6.5A1.5 1.5 0 014.5 5h9A1.5 1.5 0 0115 6.5V7"/><rect x="3" y="6.5" width="14" height="9.5" rx="1.6"/><circle cx="13.5" cy="11.2" r="1.1"/>',
+  moeda:     '<circle cx="10" cy="10" r="6.5"/><path d="M8.3 7.4h2.6a1.7 1.7 0 010 3.4H8.3V7.4zM8.3 10.8h1.4l1.9 2.6"/>',
+  grafico:   '<path d="M3 15.5l4.2-4.8 3 2.6 5-6.3"/><path d="M12.5 7h3v3"/>',
+  pessoa:    '<circle cx="10" cy="7" r="2.8"/><path d="M4.5 16.5c0-3 2.6-4.5 5.5-4.5s5.5 1.5 5.5 4.5"/>',
+  documento: '<path d="M5 3h6.5L15 6.5V17H5z"/><path d="M11.5 3v3.5H15"/><path d="M7.5 11h5M7.5 13.5h5"/>',
+  estrela:   '<path d="M10 3.5l2.1 4.3 4.7.7-3.4 3.3.8 4.7L10 14.3l-4.2 2.2.8-4.7L3.2 8.5l4.7-.7z"/>',
+  viagem:    '<rect x="3" y="6.5" width="14" height="9.5" rx="1.5"/><path d="M7 6.5V4.5A1.5 1.5 0 018.5 3h3A1.5 1.5 0 0113 4.5v2"/><path d="M7 6.5v9.5M13 6.5v9.5"/>'
+};
+var ICONES_ORDEM = ["etiqueta","casa","mercado","restaurante","cafe","carro","combustivel","onibus","aviao",
+  "saude","remedio","escola","livro","trabalho","salario","presente","luz","agua","internet","telefone","tv",
+  "academia","pet","roupa","ferramenta","cofre","banco","cartao","carteira","moeda","grafico","pessoa",
+  "documento","estrela","viagem"];
+/* nas contas e cartões, os mais prováveis aparecem primeiro */
+var ICONES_BANCO = ["banco","cartao","carteira","cofre","moeda","salario","grafico","documento","estrela","casa","trabalho","pessoa"];
+
+var CORES = [["Azul","#1f7ac0"],["Ciano","#0e9aa7"],["Verde","#2ea36b"],["Oliva","#6f9c3d"],
+  ["Amarelo","#b08206"],["Laranja","#cc6a2b"],["Vermelho","#d64545"],["Rosa","#d6568c"],
+  ["Roxo","#9061e8"],["Índigo","#5b6bd6"],["Marrom","#9b7060"],["Cinza","#6b7f8c"]];
+
+function corSegura(c){ return (typeof c === "string" && /^#[0-9a-fA-F]{6}$/.test(c)) ? c : null; }
+function svgIcone(chave, tam){
+  var d = ICONES[chave] || ICONES.etiqueta;
+  return '<svg viewBox="0 0 20 20" width="'+(tam||16)+'" height="'+(tam||16)+'" fill="none" '+
+    'stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+d+'</svg>';
+}
+/* selo redondo com o ícone; sem cor escolhida usa o cinza do texto */
+function chipIcone(reg, tam){
+  reg = reg || {};
+  var c = corSegura(reg.cor);
+  var estilo = c ? 'color:'+c+';background:color-mix(in srgb, '+c+' 14%, transparent);border-color:color-mix(in srgb, '+c+' 30%, transparent)' : "";
+  return '<span class="chip-ico" style="'+estilo+'">'+svgIcone(reg.icone, tam)+'</span>';
+}
+
 /* Lançamento informativo: fica registrado mas não mexe em dinheiro nenhum
    (saldo, limite, fatura, painel e relatórios ignoram). */
 function ehInfo(l){ return !!l.informativo; }
@@ -646,9 +731,11 @@ function vPainel(){
   var porCat = {};
   m.filter(l=>l.tipo==="despesa").forEach(function(l){
     var c = categoria(l.categoria_id); var nome = c?c.nome:"Sem categoria";
-    porCat[nome] = (porCat[nome]||0) + Number(l.valor);
+    if(!porCat[nome]) porCat[nome] = { valor:0, cat:c||{} };
+    porCat[nome].valor += Number(l.valor);
   });
-  var cats = Object.keys(porCat).map(k=>({nome:k,valor:porCat[k]})).sort((a,b)=>b.valor-a.valor).slice(0,8);
+  var cats = Object.keys(porCat).map(k=>({nome:k, valor:porCat[k].valor, cat:porCat[k].cat}))
+    .sort((a,b)=>b.valor-a.valor).slice(0,8);
   var maxCat = cats.length ? cats[0].valor : 1;
 
   // próximas contas a vencer: o que está vencido + o que vence nos próximos 2 meses
@@ -682,9 +769,12 @@ function vPainel(){
       '<span class="legenda">'+mesBR(estado.mes)+'</span></div>'+
       '<div class="card-b">'+ (cats.length ?
         '<div class="barras">'+cats.map(function(c){
-          return '<div><div class="barra-l"><span>'+esc(c.nome)+'</span>'+
+          var cor = corSegura(c.cat.cor);
+          return '<div><div class="barra-l"><span class="com-ico">'+chipIcone(c.cat, 14)+
+              '<span>'+esc(c.nome)+'</span></span>'+
             '<span class="num forte">'+BRL(c.valor)+'</span></div>'+
-            '<div class="barra"><i style="width:'+(c.valor/maxCat*100)+'%"></i></div></div>';
+            '<div class="barra"><i style="width:'+(c.valor/maxCat*100)+'%'+
+              (cor?';background:'+cor:"")+'"></i></div></div>';
         }).join("")+'</div>'
         : '<div class="vazio">Nenhuma despesa neste mês.</div>') +
       '</div></div>'+
@@ -785,8 +875,11 @@ function linhaLanc(l){
       (nAnexos ? '<button type="button" class="clipe-lista" data-act="verAnexos" data-id="'+l.id+
         '" title="Ver anexos">📎 '+nAnexos+'</button>' : "")+
       (l.recorrencia_id?'<div class="legenda">recorrente</div>':"")+'</td>'+
-    '<td>'+esc(nomeCat(l))+'</td>'+
-    '<td>'+esc(origem)+'</td>'+
+    '<td><div class="com-ico">'+chipIcone(categoria(l.categoria_id)||{}, 14)+
+      '<span>'+esc(nomeCat(l))+'</span></div></td>'+
+    '<td><div class="com-ico">'+
+      chipIcone((l.forma==="cartao" ? cartao(l.cartao_id) : conta(l.conta_id)) || {}, 14)+
+      '<span>'+esc(origem)+'</span></div></td>'+
     '<td class="r num '+(ehInfo(l) ? "valor-info" : (l.tipo==="receita"?"pos":""))+'">'+
       (l.tipo==="receita"?"+":"−")+BRL(l.valor)+'</td>'+
     '<td>'+selo(st)+'</td>'+
@@ -823,7 +916,9 @@ function vContas(){
       '<th class="r">Saldo inicial</th><th class="r">Saldo atual</th><th></th></tr></thead><tbody>'+
       D.contas.map(function(c){
         var s = saldoConta(c.id);
-        return '<tr><td class="forte">'+esc(c.nome)+'</td><td>'+esc(c.instituicao||"—")+'</td>'+
+        return '<tr><td><div class="com-ico">'+chipIcone(c)+'<span class="forte">'+esc(c.nome)+
+            (c.ativo===false?' <span class="legenda">(inativa)</span>':"")+'</span></div></td>'+
+          '<td>'+esc(c.instituicao||"—")+'</td>'+
           '<td>'+esc((TIPOS_CONTA.filter(t=>t[0]===c.tipo)[0]||["","—"])[1])+'</td>'+
           '<td class="r num">'+BRL(c.saldo_inicial)+'</td>'+
           '<td class="r num forte '+(s<0?"neg":"")+'">'+BRL(s)+'</td>'+
@@ -883,7 +978,8 @@ function vCartoes(){
       var usado = usoCartao(c.id), disp = limiteDisponivel(c.id);
       var pctUso = c.limite_total>0 ? Math.min(usado/c.limite_total*100,100) : 0;
       var cor = pctUso>=90 ? "var(--negative)" : pctUso>=70 ? "var(--caution)" : "var(--chart-1)";
-      return '<div class="kpi"><div class="rotulo">'+esc(c.nome)+'</div>'+
+      return '<div class="kpi"><div class="com-ico" style="margin-bottom:6px">'+chipIcone(c)+
+          '<span class="rotulo">'+esc(c.nome)+(c.ativo===false?" · inativo":"")+'</span></div>'+
         '<div class="v">'+BRL(disp)+'</div>'+
         '<div class="d">disponível de '+BRL(c.limite_total)+'</div>'+
         '<div class="medidor"><i style="width:'+pctUso+'%;background:'+cor+'"></i></div>'+
@@ -971,10 +1067,13 @@ function vCategorias(){
       '<button class="btn sm" data-act="novaCategoria" data-tipo="'+tipo+'">+ Categoria</button></div>'+
       (cats.length ? '<div class="tabela-rolagem"><table><tbody>'+cats.map(function(c){
         var subs = D.subcategorias.filter(s=>s.categoria_id===c.id);
-        return '<tr><td><span class="forte">'+esc(c.nome)+'</span>'+
+        return '<tr><td><div class="com-ico">'+chipIcone(c)+'<div style="min-width:0">'+
+          '<span class="forte">'+esc(c.nome)+'</span>'+
           (subs.length ? '<div class="legenda">'+subs.map(s=>esc(s.nome)).join(" · ")+'</div>' : '<div class="legenda">sem subcategorias</div>')+
+          '</div></div>'+
           '</td><td class="r"><div class="acoes" style="justify-content:flex-end">'+
           '<button class="btn sm" data-act="novaSub" data-id="'+c.id+'">+ Subcategoria</button>'+
+          '<button class="btn sm" data-act="editarCategoria" data-id="'+c.id+'">Editar</button>'+
           '<button class="btn sm" data-act="apagarCategoria" data-id="'+c.id+'">Excluir</button>'+
           '</div></td></tr>';
       }).join("")+'</tbody></table></div>' : '<div class="vazio">Nenhuma categoria de '+tipo+'.</div>')+
@@ -1080,6 +1179,74 @@ function opcoesCartao(sel){
 
 function sel(a, b){ return a===b ? " selected" : ""; }
 
+/* ---- escolha de ícone e cor (categorias, contas e cartões) ---- */
+function corpoAparencia(reg, ordem){
+  reg = reg || {};
+  var lista = (ordem || ICONES_ORDEM).slice();
+  ICONES_ORDEM.forEach(function(k){ if(lista.indexOf(k) < 0) lista.push(k); });
+  var ico = ICONES[reg.icone] ? reg.icone : lista[0];
+  var cor = corSegura(reg.cor);
+  return '<div class="linha l2">'+
+    '<div class="campo"><label class="rotulo">Ícone</label>'+
+      '<div class="grade-ico" id="gradeIco">'+
+        lista.map(function(k){
+          return '<button type="button" class="op-ico'+(k===ico?" on":"")+'" data-ico="'+k+'" title="'+k+'">'+
+            svgIcone(k,18)+'</button>';
+        }).join("")+
+      '</div></div>'+
+    '<div class="campo"><label class="rotulo">Cor</label>'+
+      '<div class="grade-cor" id="gradeCor">'+
+        '<button type="button" class="op-cor'+(cor?"":" on")+'" data-cor="" title="Sem cor"'+
+          ' style="background:var(--surface-200)"></button>'+
+        CORES.map(function(c){
+          return '<button type="button" class="op-cor'+(cor&&cor.toLowerCase()===c[1]?" on":"")+
+            '" data-cor="'+c[1]+'" title="'+c[0]+'" style="background:'+c[1]+'"></button>';
+        }).join("")+
+      '</div>'+
+      '<div class="previa-ap"><span id="previaIco">'+chipIcone({icone:ico, cor:cor})+'</span>'+
+        '<span>é assim que vai aparecer nas listas</span></div>'+
+    '</div>'+
+  '</div>'+
+  '<input type="hidden" id="fIcone" value="'+esc(ico)+'">'+
+  '<input type="hidden" id="fCor" value="'+esc(cor||"")+'">';
+}
+function ligarAparencia(d){
+  function previa(){
+    $("#previaIco",d).innerHTML = chipIcone({ icone:$("#fIcone",d).value, cor:$("#fCor",d).value });
+  }
+  $("#gradeIco",d).addEventListener("click", function(ev){
+    var b = ev.target.closest(".op-ico"); if(!b) return;
+    $$(".op-ico", d).forEach(function(x){ x.classList.remove("on"); });
+    b.classList.add("on");
+    $("#fIcone",d).value = b.dataset.ico;
+    previa();
+  });
+  $("#gradeCor",d).addEventListener("click", function(ev){
+    var b = ev.target.closest(".op-cor"); if(!b) return;
+    $$(".op-cor", d).forEach(function(x){ x.classList.remove("on"); });
+    b.classList.add("on");
+    $("#fCor",d).value = b.dataset.cor;
+    previa();
+  });
+}
+function lerAparencia(d){
+  return { icone: $("#fIcone",d).value || null, cor: corSegura($("#fCor",d).value) };
+}
+
+/* ---- categoria ---- */
+function corpoCategoria(c){
+  c = c || {};
+  return '<div class="campo"><label class="rotulo">Nome</label>'+
+      '<input id="gNome" placeholder="ex.: Moradia" value="'+esc(c.nome||"")+'"></div>'+
+    corpoAparencia(c);
+}
+function lerCategoria(d){
+  var nome=$("#gNome",d).value.trim();
+  if(!nome) falha("Informe o nome da categoria.");
+  var ap = lerAparencia(d);
+  return { nome:nome, icone:ap.icone, cor:ap.cor };
+}
+
 /* ---- conta bancária ---- */
 function corpoConta(c){
   c = c || {};
@@ -1094,6 +1261,7 @@ function corpoConta(c){
     '</div>'+
     '<div class="campo"><label class="rotulo">Saldo inicial (R$)</label>'+
       '<input id="cSaldo" type="number" step="0.01" value="'+(c.saldo_inicial!=null?Number(c.saldo_inicial):0)+'"></div>'+
+    corpoAparencia(c, ICONES_BANCO)+
     (c.id ? '<label class="caixa"><input type="checkbox" id="cAtivo"'+(c.ativo!==false?" checked":"")+'>'+
       '<span><b>Conta ativa</b><br><span class="legenda">Contas inativas saem do saldo total.</span></span></label>' : "");
 }
@@ -1101,8 +1269,10 @@ function lerConta(d){
   var nome=$("#cNome",d).value.trim();
   if(!nome) falha("Informe o nome da conta.");
   var ativo = $("#cAtivo",d) ? $("#cAtivo",d).checked : true;
+  var ap = lerAparencia(d);
   return { nome:nome, instituicao:$("#cInst",d).value.trim()||null,
-           tipo:$("#cTipo",d).value, saldo_inicial:Number($("#cSaldo",d).value)||0, ativo:ativo };
+           tipo:$("#cTipo",d).value, saldo_inicial:Number($("#cSaldo",d).value)||0, ativo:ativo,
+           icone:ap.icone, cor:ap.cor };
 }
 
 /* ---- cartão de crédito ---- */
@@ -1122,6 +1292,7 @@ function corpoCartao(c){
       '<div class="campo"><label class="rotulo">Dia do vencimento</label>'+
         '<input id="kVenc" type="number" min="1" max="31" value="'+(c.dia_vencimento||10)+'"></div>'+
     '</div>'+
+    corpoAparencia(c, ICONES_BANCO)+
     (c.id ? '<p class="legenda" style="margin:-8px 0 14px">Mudar os dias vale para as próximas compras; '+
       'as faturas já abertas continuam com as datas de quando foram criadas.</p>'+
       '<label class="caixa"><input type="checkbox" id="kAtivo"'+(c.ativo!==false?" checked":"")+'>'+
@@ -1133,10 +1304,12 @@ function lerCartao(d){
   if(!nome) falha("Informe o nome do cartão.");
   if(!(fech>=1&&fech<=31)) falha("Dia de fechamento inválido.");
   if(!(venc>=1&&venc<=31)) falha("Dia de vencimento inválido.");
+  var ap = lerAparencia(d);
   return { nome:nome, emissor:$("#kEmissor",d).value.trim()||null,
            limite_total:Number($("#kLimite",d).value)||0,
            dia_fechamento:fech, dia_vencimento:venc,
-           ativo: $("#kAtivo",d) ? $("#kAtivo",d).checked : true };
+           ativo: $("#kAtivo",d) ? $("#kAtivo",d).checked : true,
+           icone:ap.icone, cor:ap.cor };
 }
 function corpoLancamento(l){
   l = l || {};
@@ -1476,19 +1649,21 @@ var ACOES = {
   },
 
   novaConta: function(){
-    abrirDialogo("Nova conta bancária", corpoConta(), async function(d){
+    var d = abrirDialogo("Nova conta bancária", corpoConta(), async function(d){
       var campos = lerConta(d);
       D.contas.push((await API.inserir("fin_contas", campos))[0]);
     });
+    ligarAparencia(d);
   },
 
   editarConta: function(b){
     var c = conta(b.dataset.id); if(!c) return;
-    abrirDialogo("Editar conta bancária", corpoConta(c), async function(d){
+    var d = abrirDialogo("Editar conta bancária", corpoConta(c), async function(d){
       var campos = lerConta(d);
       await API.atualizar("fin_contas", c.id, campos);
       Object.assign(c, campos);
     }, "Salvar alterações");
+    ligarAparencia(d);
   },
 
   apagarConta: async function(b){
@@ -1505,18 +1680,20 @@ var ACOES = {
   voltarContas: function(){ estado.contaExtrato=null; render(); },
 
   novoCartao: function(){
-    abrirDialogo("Novo cartão de crédito", corpoCartao(), async function(d){
+    var d = abrirDialogo("Novo cartão de crédito", corpoCartao(), async function(d){
       D.cartoes.push((await API.inserir("fin_cartoes", lerCartao(d)))[0]);
     });
+    ligarAparencia(d);
   },
 
   editarCartao: function(b){
     var c = cartao(b.dataset.id); if(!c) return;
-    abrirDialogo("Editar cartão de crédito", corpoCartao(c), async function(d){
+    var d = abrirDialogo("Editar cartão de crédito", corpoCartao(c), async function(d){
       var campos = lerCartao(d);
       await API.atualizar("fin_cartoes", c.id, campos);
       Object.assign(c, campos);
     }, "Salvar alterações");
+    ligarAparencia(d);
   },
 
   apagarCartao: async function(b){
@@ -1569,14 +1746,22 @@ var ACOES = {
 
   novaCategoria: function(b){
     var tipo=b.dataset.tipo;
-    abrirDialogo("Nova categoria de "+tipo,
-      '<div class="campo"><label class="rotulo">Nome</label><input id="gNome" placeholder="ex.: Moradia"></div>',
-      async function(d){
-        var nome=$("#gNome",d).value.trim();
-        if(!nome) falha("Informe o nome da categoria.");
-        var nova = (await API.inserir("fin_categorias", { nome:nome, tipo:tipo }))[0];
-        D.categorias.push(nova);
-      });
+    var d = abrirDialogo("Nova categoria de "+tipo, corpoCategoria(), async function(d){
+      var campos = lerCategoria(d);
+      campos.tipo = tipo;
+      D.categorias.push((await API.inserir("fin_categorias", campos))[0]);
+    });
+    ligarAparencia(d);
+  },
+
+  editarCategoria: function(b){
+    var c = categoria(b.dataset.id); if(!c) return;
+    var d = abrirDialogo("Editar categoria", corpoCategoria(c), async function(d){
+      var campos = lerCategoria(d);
+      await API.atualizar("fin_categorias", c.id, campos);
+      Object.assign(c, campos);
+    }, "Salvar alterações");
+    ligarAparencia(d);
   },
 
   novaSub: function(b){
@@ -1633,21 +1818,24 @@ document.addEventListener("change", function(ev){
 =================================================================== */
 async function semearExemplo(){
   var contas = await API.inserir("fin_contas", [
-    { nome:"Conta corrente", instituicao:"Banco do Brasil", tipo:"corrente", saldo_inicial:4200, ativo:true, exemplo:true },
-    { nome:"Poupança", instituicao:"Caixa", tipo:"poupanca", saldo_inicial:12000, ativo:true, exemplo:true }
+    { nome:"Conta corrente", instituicao:"Banco do Brasil", tipo:"corrente", saldo_inicial:4200, ativo:true, exemplo:true,
+      icone:"banco", cor:"#b08206" },
+    { nome:"Poupança", instituicao:"Caixa", tipo:"poupanca", saldo_inicial:12000, ativo:true, exemplo:true,
+      icone:"cofre", cor:"#1f7ac0" }
   ]);
   var cartoes = await API.inserir("fin_cartoes", [
-    { nome:"Cartão principal", emissor:"Nubank", limite_total:8000, dia_fechamento:20, dia_vencimento:28, ativo:true, exemplo:true }
+    { nome:"Cartão principal", emissor:"Nubank", limite_total:8000, dia_fechamento:20, dia_vencimento:28, ativo:true, exemplo:true,
+      icone:"cartao", cor:"#9061e8" }
   ]);
   var catsR = await API.inserir("fin_categorias", [
-    { nome:"Salário", tipo:"receita", exemplo:true },
-    { nome:"Freelance", tipo:"receita", exemplo:true }
+    { nome:"Salário", tipo:"receita", exemplo:true, icone:"salario", cor:"#2ea36b" },
+    { nome:"Freelance", tipo:"receita", exemplo:true, icone:"trabalho", cor:"#0e9aa7" }
   ]);
   var catsD = await API.inserir("fin_categorias", [
-    { nome:"Moradia", tipo:"despesa", exemplo:true },
-    { nome:"Alimentação", tipo:"despesa", exemplo:true },
-    { nome:"Transporte", tipo:"despesa", exemplo:true },
-    { nome:"Fatura de cartão", tipo:"despesa", exemplo:true }
+    { nome:"Moradia", tipo:"despesa", exemplo:true, icone:"casa", cor:"#cc6a2b" },
+    { nome:"Alimentação", tipo:"despesa", exemplo:true, icone:"mercado", cor:"#6f9c3d" },
+    { nome:"Transporte", tipo:"despesa", exemplo:true, icone:"carro", cor:"#1f7ac0" },
+    { nome:"Fatura de cartão", tipo:"despesa", exemplo:true, icone:"cartao", cor:"#6b7f8c" }
   ]);
   var subs = await API.inserir("fin_subcategorias", [
     { categoria_id:catsD[0].id, nome:"Aluguel", exemplo:true },
