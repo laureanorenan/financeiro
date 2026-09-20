@@ -1,0 +1,1413 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f4f8fb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#001b2e" media="(prefers-color-scheme: dark)">
+<title>Receitas e Despesas</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="/controle-obras/vendor-supabase.js"></script>
+<style>
+:root{
+  --surface-000:#ffffff; --surface-100:#f4f8fb; --surface-200:#e5eef4;
+  --surface-brand:#004070; --surface-accent:#66cdaa;
+  --ink-900:#00263f; --ink-700:#004070; --ink-500:#4d6f88;
+  --on-brand:#ffffff; --on-accent:#00263f; --accent-ink:#0c7a59;
+  --border-subtle:#d6e3ec; --border-strong:#5f7f94; --focus:#3f9c7c;
+  --positive:#0c7a59; --negative:#b3261e; --caution:#8a5a00; --serious:#b3541e;
+  --chart-1:#0d6cb0; --chart-2:#3f9c7c; --chart-grid:#dce7ef;
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px;
+  --space-5:24px; --space-6:32px; --space-8:48px;
+  --radius-sm:4px; --radius-md:8px; --radius-lg:14px; --radius-pill:999px;
+  --font-sans:Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font-mono:"Roboto Mono",ui-monospace,Menlo,monospace;
+  --side-w:212px;
+}
+:root[data-theme="dark"]{
+  --surface-000:#001b2e; --surface-100:#002a45; --surface-200:#003656;
+  --ink-900:#ffffff; --ink-700:#dfeaf2; --ink-500:#9dbdd3;
+  --accent-ink:#8fe0c2;
+  --border-subtle:#14486e; --border-strong:#7fa8c4; --focus:#66cdaa;
+  --positive:#66cdaa; --negative:#ff8a80; --caution:#f0b429; --serious:#ffab6b;
+  --chart-1:#2f86c6; --chart-2:#35a98a; --chart-grid:#0d3c5c;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--surface-100);color:var(--ink-700);
+  font-family:var(--font-sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.rotulo{font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-500)}
+.legenda{font-size:11px;line-height:1.45;color:var(--ink-500)}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:var(--radius-sm)}
+button,input,select,textarea{font:inherit;color:inherit}
+h1,h2,h3,h4{margin:0}
+a{color:var(--chart-1)}
+
+/* layout */
+.app{display:grid;grid-template-columns:var(--side-w) minmax(0,1fr);min-height:100vh}
+.nav{background:var(--surface-000);border-right:1px solid var(--border-subtle);padding:var(--space-4) var(--space-3)}
+.marca{display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-5);padding:0 var(--space-2)}
+.marca .mk{width:30px;height:30px;border-radius:9px;background:var(--surface-brand);color:var(--surface-accent);
+  display:grid;place-items:center;font-weight:700;font-size:12px;flex:0 0 30px}
+.marca b{font-size:14px;color:var(--ink-900);display:block;line-height:1.2}
+.nav button{display:flex;align-items:center;gap:var(--space-3);width:100%;background:none;border:0;cursor:pointer;
+  padding:var(--space-2) var(--space-3);border-radius:var(--radius-md);color:var(--ink-700);text-align:left;font-size:14px}
+.nav button:hover{background:var(--surface-100);color:var(--ink-900)}
+.nav button[aria-current="true"]{background:var(--surface-brand);color:var(--on-brand);font-weight:500}
+.nav .tema{margin-top:var(--space-5);font-size:12px;color:var(--ink-500)}
+.conteudo{padding:var(--space-5);padding-bottom:88px;max-width:1320px;width:100%}
+.topo{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--space-4);flex-wrap:wrap;margin-bottom:var(--space-5)}
+.topo h1{font-size:22px;font-weight:700;color:var(--ink-900)}
+
+/* peças */
+.card{background:var(--surface-000);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);margin-bottom:var(--space-4)}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);
+  padding:var(--space-4);border-bottom:1px solid var(--border-subtle);flex-wrap:wrap}
+.card-h h3{font-size:16px;font-weight:500;color:var(--ink-900)}
+.card-b{padding:var(--space-4)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:var(--space-4);margin-bottom:var(--space-4)}
+.kpi{background:var(--surface-000);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:var(--space-4)}
+.kpi .v{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:26px;font-weight:500;color:var(--ink-900);margin-top:var(--space-2)}
+.kpi .d{font-size:12px;color:var(--ink-500);margin-top:var(--space-1)}
+.grid2{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:var(--space-4);align-items:start}
+.btn{height:34px;padding:0 var(--space-4);border-radius:var(--radius-md);border:1px solid var(--border-strong);
+  background:var(--surface-000);cursor:pointer;font-size:13px;color:var(--ink-700)}
+.btn:hover{background:var(--surface-100)}
+.btn.primary{background:var(--surface-brand);border-color:transparent;color:var(--on-brand);font-weight:500}
+.btn.primary:hover{background:#00355e}
+.btn.sm{height:28px;padding:0 var(--space-3);font-size:12px}
+.btn.perigo{color:var(--negative);border-color:var(--negative)}
+.btn:disabled{opacity:.55;cursor:default}
+.acoes{display:flex;gap:var(--space-2);flex-wrap:wrap}
+
+table{width:100%;border-collapse:collapse}
+th{text-align:left;background:var(--surface-100);border-bottom:1px solid var(--border-subtle);
+  padding:var(--space-2) var(--space-4);font-size:11px;font-weight:500;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink-500);white-space:nowrap}
+td{padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--border-subtle);font-size:13px;vertical-align:top}
+tbody tr:last-child td{border-bottom:0}
+tfoot td{font-weight:500;background:var(--surface-100);color:var(--ink-900)}
+.r{text-align:right}
+.tabela-rolagem{overflow-x:auto}
+.forte{color:var(--ink-900);font-weight:500}
+
+.selo{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:500;
+  padding:2px 9px;border-radius:var(--radius-pill);border:1px solid;white-space:nowrap}
+.s-pago{color:var(--positive);border-color:var(--positive)}
+.s-pend{color:var(--caution);border-color:var(--caution)}
+.s-venc{color:var(--negative);border-color:var(--negative)}
+.s-fat{color:var(--ink-500);border-color:var(--border-strong)}
+.pos{color:var(--positive)} .neg{color:var(--negative)} .cau{color:var(--caution)}
+
+.campo{margin-bottom:var(--space-3)}
+.campo label{display:block;margin-bottom:var(--space-1)}
+.campo input,.campo select,.campo textarea{width:100%;height:36px;border:1px solid var(--border-strong);
+  border-radius:var(--radius-sm);background:var(--surface-000);padding:0 var(--space-3);font-size:14px}
+.campo textarea{height:62px;padding:var(--space-2) var(--space-3);resize:vertical}
+.campo input:focus,.campo select:focus,.campo textarea:focus{outline:none;border-color:var(--focus);box-shadow:0 0 0 2px rgba(63,156,124,.2)}
+.linha{display:grid;gap:var(--space-3)}
+.l2{grid-template-columns:1fr 1fr} .l3{grid-template-columns:1fr 1fr 1fr}
+.filtros{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--space-3);align-items:end}
+
+dialog{border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:0;
+  background:var(--surface-000);color:var(--ink-700);max-width:640px;width:calc(100% - 28px)}
+dialog::backdrop{background:rgba(0,38,63,.5)}
+.dlg-h{padding:var(--space-4);border-bottom:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center}
+.dlg-h h3{font-size:16px;font-weight:500;color:var(--ink-900)}
+.dlg-b{padding:var(--space-4);max-height:66vh;overflow-y:auto}
+.dlg-f{padding:var(--space-4);border-top:1px solid var(--border-subtle);display:flex;justify-content:flex-end;gap:var(--space-2)}
+.erro{color:var(--negative);font-size:13px;margin-top:var(--space-3)}
+.vazio{padding:var(--space-8) var(--space-4);text-align:center;color:var(--ink-500);font-size:13px}
+.vazio h4{font-size:15px;color:var(--ink-900);margin-bottom:var(--space-2)}
+
+.barras{display:flex;flex-direction:column;gap:var(--space-3)}
+.barra-l{display:flex;justify-content:space-between;gap:var(--space-3);font-size:13px;margin-bottom:3px}
+.barra{height:10px;border-radius:var(--radius-sm);background:var(--surface-200);overflow:hidden}
+.barra i{display:block;height:100%;background:var(--chart-1);border-radius:var(--radius-sm)}
+.medidor{height:8px;border-radius:var(--radius-sm);background:var(--surface-200);overflow:hidden;margin-top:var(--space-2)}
+.medidor i{display:block;height:100%;border-radius:var(--radius-sm)}
+.aviso{padding:var(--space-3) var(--space-4);border-radius:var(--radius-md);border:1px solid var(--border-subtle);
+  background:var(--surface-000);font-size:13px;margin-bottom:var(--space-3)}
+.carregando{padding:var(--space-8);text-align:center;color:var(--ink-500)}
+
+@media (max-width:820px){
+  .app{grid-template-columns:1fr}
+  .nav{border-right:0;border-bottom:1px solid var(--border-subtle);display:flex;gap:var(--space-2);
+    overflow-x:auto;padding:var(--space-3);align-items:center}
+  .marca{margin:0 var(--space-3) 0 0}
+  .nav button{width:auto;white-space:nowrap}
+  .conteudo{padding:var(--space-4)}
+  .grid2{grid-template-columns:1fr}
+  .l2,.l3{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div id="raiz"><div class="carregando">Carregando…</div></div>
+
+<script>
+"use strict";
+
+/* ===================================================================
+   Configuração
+=================================================================== */
+var SUPABASE_URL = "https://inlkyyjqfrokohdgfswd.supabase.co";
+var SUPABASE_KEY = "sb_publishable_Jy_Htveu81VI0-WGwJlO_g_lieqPAZT";
+var TABELAS = ["fin_contas","fin_cartoes","fin_categorias","fin_subcategorias",
+               "fin_recorrencias","fin_faturas","fin_lancamentos"];
+var USAR_MOCK = /(\?|&)mock=1/.test(location.search);
+
+/* ===================================================================
+   Utilidades
+=================================================================== */
+var $ = function(s,r){ return (r||document).querySelector(s); };
+var $$ = function(s,r){ return [].slice.call((r||document).querySelectorAll(s)); };
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+function uid(){ return (crypto.randomUUID ? crypto.randomUUID()
+  : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,function(c){
+      var r=Math.random()*16|0, v=c==="x"?r:(r&0x3|0x8); return v.toString(16); })); }
+
+var fBRL = new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"});
+var fNum = new Intl.NumberFormat("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+function BRL(v){ return fBRL.format(Number(v)||0); }
+function N2(v){ return fNum.format(Number(v)||0); }
+function PCT(v){ return (Number(v)||0).toFixed(1).replace(".",",")+"%"; }
+
+function hoje(){ var d=new Date(); return iso(d); }
+function iso(d){ return d.getFullYear()+"-"+p2(d.getMonth()+1)+"-"+p2(d.getDate()); }
+function p2(n){ return String(n).padStart(2,"0"); }
+function dBR(s){ if(!s) return "—"; var p=String(s).slice(0,10).split("-"); return p[2]+"/"+p[1]+"/"+p[0]; }
+function ym(s){ return String(s).slice(0,7); }
+function mesBR(s){
+  var m=["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+  var p=String(s).split("-"); return m[+p[1]-1]+"/"+p[0];
+}
+function addMeses(dataIso, n){
+  var p = String(dataIso).slice(0,10).split("-").map(Number);
+  var ano=p[0], mes=p[1]-1+n, dia=p[2];
+  var d = new Date(ano, mes, 1);
+  var ultimo = new Date(d.getFullYear(), d.getMonth()+1, 0).getDate();
+  d.setDate(Math.min(dia, ultimo));
+  return iso(d);
+}
+function diaNoMes(ano, mes /*1-12*/, dia){
+  var ultimo = new Date(ano, mes, 0).getDate();
+  return ano+"-"+p2(mes)+"-"+p2(Math.min(dia, ultimo));
+}
+function cent(v){ return Math.round((Number(v)||0)*100); }
+function doCent(c){ return c/100; }
+
+/* ===================================================================
+   Camada de dados — Supabase ou simulação local (para teste)
+=================================================================== */
+function apiSupabase(sb){
+  function checar(r){ if(r.error) throw new Error(r.error.message||"erro no banco"); return r.data; }
+  return {
+    modo:"supabase",
+    async listar(t){ return checar(await sb.from(t).select("*")); },
+    async inserir(t, linhas){
+      var arr = Array.isArray(linhas)?linhas:[linhas];
+      return checar(await sb.from(t).insert(arr).select());
+    },
+    async atualizar(t, id, campos){ return checar(await sb.from(t).update(campos).eq("id",id).select()); },
+    async apagar(t, id){ return checar(await sb.from(t).delete().eq("id",id)); },
+    async apagarExemplos(t){ return checar(await sb.from(t).delete().eq("exemplo",true)); }
+  };
+}
+
+function apiMock(){
+  var CH = "fin.mock.v1";
+  var dados = {};
+  try { dados = JSON.parse(localStorage.getItem(CH)||"{}"); } catch(e){ dados = {}; }
+  TABELAS.forEach(function(t){ if(!dados[t]) dados[t]=[]; });
+  function salvar(){ try{ localStorage.setItem(CH, JSON.stringify(dados)); }catch(e){} }
+  return {
+    modo:"mock",
+    async listar(t){ return dados[t].slice(); },
+    async inserir(t, linhas){
+      var arr = (Array.isArray(linhas)?linhas:[linhas]).map(function(o){
+        var n = Object.assign({ id: uid(), criado_em: new Date().toISOString(), exemplo:false }, o);
+        return n;
+      });
+      dados[t] = dados[t].concat(arr); salvar(); return arr;
+    },
+    async atualizar(t, id, campos){
+      dados[t] = dados[t].map(function(r){ return r.id===id ? Object.assign({}, r, campos) : r; });
+      salvar(); return dados[t].filter(function(r){ return r.id===id; });
+    },
+    async apagar(t, id){ dados[t] = dados[t].filter(function(r){ return r.id!==id; }); salvar(); },
+    async apagarExemplos(t){ dados[t] = dados[t].filter(function(r){ return !r.exemplo; }); salvar(); }
+  };
+}
+
+/* ===================================================================
+   Estado
+=================================================================== */
+var API = null, sb = null, sessao = null;
+var D = { contas:[], cartoes:[], categorias:[], subcategorias:[], recorrencias:[], faturas:[], lancamentos:[] };
+var estado = {
+  view: "painel",
+  mes: ym(hoje()),
+  // começa no mês corrente para a lista não abrir com um ano de parcelas futuras
+  filtros: { de: ym(hoje())+"-01", ate: fimDoMes(ym(hoje())), status:"", categoria:"", forma:"", tipo:"" },
+  cartaoFatura: null, competenciaFatura: null, contaExtrato: null
+};
+function fimDoMes(m){
+  var a=+m.slice(0,4), s=+m.slice(5,7);
+  return diaNoMes(a, s, 31);
+}
+
+/* ===================================================================
+   Regras de negócio
+=================================================================== */
+
+/* Em que fatura cai uma compra feita em `data` no cartão `c`. */
+function faturaDaCompra(c, data){
+  var p = String(data).slice(0,10).split("-").map(Number);
+  var ano=p[0], mes=p[1], dia=p[2];
+  // fecha neste mês se a compra veio até o dia do fechamento
+  var mesFech = (dia <= c.dia_fechamento) ? mes : mes+1;
+  var anoFech = ano;
+  if(mesFech > 12){ mesFech -= 12; anoFech += 1; }
+  var fechamento = diaNoMes(anoFech, mesFech, c.dia_fechamento);
+  // vence no mesmo mês do fechamento se o dia de vencimento vier depois; senão no mês seguinte
+  var mesVenc = anoFech, dv;
+  if(c.dia_vencimento > c.dia_fechamento){
+    dv = diaNoMes(anoFech, mesFech, c.dia_vencimento);
+  } else {
+    var mv = mesFech+1, av = anoFech;
+    if(mv > 12){ mv -= 12; av += 1; }
+    dv = diaNoMes(av, mv, c.dia_vencimento);
+  }
+  return { fechamento: fechamento, vencimento: dv, competencia: ym(dv) };
+}
+
+/* Fatura seguinte (usada nas parcelas) */
+function faturaSeguinte(c, competencia, n){
+  var base = competencia+"-01";
+  var venc = addMeses(base, n);
+  var p = venc.split("-").map(Number);
+  var vencimento = diaNoMes(p[0], p[1], c.dia_vencimento);
+  // fechamento correspondente
+  var mf = p[1], af = p[0];
+  if(!(c.dia_vencimento > c.dia_fechamento)){ mf = p[1]-1; if(mf<1){ mf=12; af-=1; } }
+  return { fechamento: diaNoMes(af, mf, c.dia_fechamento), vencimento: vencimento, competencia: ym(vencimento) };
+}
+
+/* Divide em parcelas sem perder centavos */
+function dividirParcelas(valor, n){
+  var total = cent(valor), base = Math.floor(total/n), resto = total - base*n, out = [];
+  for(var i=0;i<n;i++) out.push(doCent(base + (i < resto ? 1 : 0)));
+  return out;
+}
+
+function conta(id){ return D.contas.filter(function(c){return c.id===id;})[0]; }
+function cartao(id){ return D.cartoes.filter(function(c){return c.id===id;})[0]; }
+function categoria(id){ return D.categorias.filter(function(c){return c.id===id;})[0]; }
+function subcategoria(id){ return D.subcategorias.filter(function(c){return c.id===id;})[0]; }
+function fatura(id){ return D.faturas.filter(function(f){return f.id===id;})[0]; }
+
+function nomeCat(l){
+  var c = categoria(l.categoria_id), s = subcategoria(l.subcategoria_id);
+  if(!c) return "—";
+  return c.nome + (s ? " · " + s.nome : "");
+}
+
+/* Saldo de uma conta: inicial + receitas pagas − despesas pagas (inclui pagamento de fatura) */
+function saldoConta(id){
+  var c = conta(id); if(!c) return 0;
+  var s = Number(c.saldo_inicial)||0;
+  D.lancamentos.forEach(function(l){
+    if(l.forma!=="conta" || l.conta_id!==id || l.status!=="pago") return;
+    s += (l.tipo==="receita" ? 1 : -1) * (Number(l.valor)||0);
+  });
+  return s;
+}
+function saldoTotal(){ return D.contas.filter(a=>a.ativo!==false).reduce(function(a,c){ return a + saldoConta(c.id); },0); }
+
+/* Limite: compromete tudo que está em fatura não paga (ou ainda sem fatura fechada) */
+function usoCartao(id){
+  var usado = 0;
+  D.lancamentos.forEach(function(l){
+    if(l.forma!=="cartao" || l.cartao_id!==id) return;
+    var f = l.fatura_id ? fatura(l.fatura_id) : null;
+    if(f && f.status==="paga") return;
+    usado += Number(l.valor)||0;
+  });
+  return usado;
+}
+function limiteDisponivel(id){
+  var c = cartao(id); if(!c) return 0;
+  return (Number(c.limite_total)||0) - usoCartao(id);
+}
+
+function statusLanc(l){
+  if(l.status==="pago") return "pago";
+  // compra no cartão não vence sozinha: quem vence é a fatura
+  if(l.forma==="cartao"){
+    var f = l.fatura_id ? fatura(l.fatura_id) : null;
+    if(f && f.status==="paga") return "pago";
+    if(f && f.vencimento < hoje()) return "vencido";
+    return "fatura";
+  }
+  if(l.data && String(l.data).slice(0,10) < hoje()) return "vencido";
+  return "pendente";
+}
+function selo(st){
+  var m = { pago:["s-pago","Pago"], pendente:["s-pend","Pendente"], vencido:["s-venc","Vencido"],
+            fatura:["s-fat","Na fatura"],
+            aberta:["s-pend","Aberta"], paga:["s-pago","Paga"] }[st] || ["s-pend",st];
+  return '<span class="selo '+m[0]+'">'+m[1]+'</span>';
+}
+
+/* Garante a fatura (cria se não existir) e devolve o id */
+async function garantirFatura(cartaoObj, ciclo){
+  var achou = D.faturas.filter(function(f){
+    return f.cartao_id===cartaoObj.id && f.competencia===ciclo.competencia; })[0];
+  if(achou) return achou.id;
+  var nova = (await API.inserir("fin_faturas", {
+    cartao_id: cartaoObj.id, competencia: ciclo.competencia,
+    fechamento: ciclo.fechamento, vencimento: ciclo.vencimento, status: "aberta",
+    exemplo: !!cartaoObj.exemplo
+  }))[0];
+  D.faturas.push(nova);
+  return nova.id;
+}
+
+function totalFatura(f){
+  return D.lancamentos.filter(function(l){ return l.fatura_id===f.id; })
+    .reduce(function(a,l){ return a + (Number(l.valor)||0); },0);
+}
+
+/* ===================================================================
+   Recorrências: materializa as ocorrências que faltam
+=================================================================== */
+async function gerarRecorrencias(){
+  var limite = addMeses(hoje(), 12);
+  var novos = [];
+  for(var i=0;i<D.recorrencias.length;i++){
+    var r = D.recorrencias[i];
+    if(r.ativo===false) continue;
+    var fim = r.fim && r.fim < limite ? r.fim : limite;
+    var data = diaNoMes(+r.inicio.slice(0,4), +r.inicio.slice(5,7), r.dia);
+    if(data < r.inicio) data = addMeses(data, 1);
+    var guarda = 0;
+    while(data <= fim && guarda++ < 400){
+      var existe = D.lancamentos.some(function(l){
+        return l.recorrencia_id===r.id && ym(l.data)===ym(data); });
+      if(!existe){
+        var base = {
+          tipo:r.tipo, forma:r.forma, descricao:r.descricao, valor:r.valor, data:data,
+          categoria_id:r.categoria_id, subcategoria_id:r.subcategoria_id,
+          conta_id:r.forma==="conta"?r.conta_id:null, cartao_id:r.forma==="cartao"?r.cartao_id:null,
+          status:"pendente", recorrencia_id:r.id, exemplo:!!r.exemplo
+        };
+        if(r.forma==="cartao"){
+          var c = cartao(r.cartao_id);
+          if(c){
+            var ciclo = faturaDaCompra(c, data);
+            base.fatura_id = await garantirFatura(c, ciclo);
+          }
+        }
+        novos.push(base);
+      }
+      data = addMeses(data, 1);
+      // respeita o dia configurado mesmo depois de meses curtos
+      data = diaNoMes(+data.slice(0,4), +data.slice(5,7), r.dia);
+    }
+  }
+  if(novos.length){
+    var inseridos = await API.inserir("fin_lancamentos", novos);
+    D.lancamentos = D.lancamentos.concat(inseridos);
+  }
+  return novos.length;
+}
+
+/* ===================================================================
+   Carga
+=================================================================== */
+async function carregar(){
+  var nomes = ["fin_contas","fin_cartoes","fin_categorias","fin_subcategorias",
+               "fin_recorrencias","fin_faturas","fin_lancamentos"];
+  var res = await Promise.all(nomes.map(function(t){ return API.listar(t); }));
+  D.contas=res[0]; D.cartoes=res[1]; D.categorias=res[2]; D.subcategorias=res[3];
+  D.recorrencias=res[4]; D.faturas=res[5]; D.lancamentos=res[6];
+  await gerarRecorrencias();
+}
+
+/* ===================================================================
+   Navegação e casca
+=================================================================== */
+var VIEWS = [
+  ["painel","Painel"], ["lancamentos","Lançamentos"], ["contas","Contas"],
+  ["cartoes","Cartões"], ["faturas","Faturas"], ["categorias","Categorias"], ["relatorios","Relatórios"]
+];
+
+/* Tema: mesma chave que o RLhub usa, para as páginas ficarem iguais. */
+function temaAtual(){
+  var t = document.documentElement.getAttribute("data-theme");
+  return t==="dark" ? "dark" : "light";
+}
+function aplicarTema(t){
+  document.documentElement.setAttribute("data-theme", t==="dark" ? "dark" : "light");
+  try{ localStorage.setItem("pt_tema", t); }catch(e){}
+  var b = document.getElementById("tema");
+  if(b) b.textContent = t==="dark" ? "Tema claro" : "Tema escuro";
+}
+function temaInicial(){
+  var t = null;
+  try{ t = localStorage.getItem("pt_tema"); }catch(e){}
+  if(!t) t = (window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+  document.documentElement.setAttribute("data-theme", t==="dark" ? "dark" : "light");
+}
+temaInicial();
+// o hub troca o tema direto no <html> do iframe; acompanhamos o rótulo do botão
+new MutationObserver(function(){
+  var b = document.getElementById("tema");
+  if(b) b.textContent = temaAtual()==="dark" ? "Tema claro" : "Tema escuro";
+}).observe(document.documentElement, { attributes:true, attributeFilter:["data-theme"] });
+
+function casca(){
+  return '<div class="app">'+
+    '<nav class="nav">'+
+      '<div class="marca"><span class="mk">R$</span><span><b>Receitas e Despesas</b>'+
+        '<span class="legenda">Finanças pessoais</span></span></div>'+
+      VIEWS.map(function(v){
+        return '<button type="button" data-view="'+v[0]+'" aria-current="'+(estado.view===v[0])+'">'+v[1]+'</button>';
+      }).join("")+
+      '<button type="button" id="tema" class="tema" data-act="trocarTema">'+
+        (temaAtual()==="dark" ? "Tema claro" : "Tema escuro")+'</button>'+
+    '</nav>'+
+    '<main class="conteudo" id="conteudo"></main>'+
+  '</div>';
+}
+
+function render(){
+  var raiz = $("#raiz");
+  if(!raiz.querySelector(".app")) raiz.innerHTML = casca();
+  $$(".nav button").forEach(function(b){ b.setAttribute("aria-current", String(estado.view===b.dataset.view)); });
+  var alvo = $("#conteudo");
+  var f = { painel:vPainel, lancamentos:vLancamentos, contas:vContas, cartoes:vCartoes,
+            faturas:vFaturas, categorias:vCategorias, relatorios:vRelatorios }[estado.view];
+  alvo.innerHTML = f();
+  alvo.scrollTop = 0;
+  barraExemplo();
+}
+
+/* Barra flutuante: carregar / apagar dados de exemplo.
+   Refeita a cada render para refletir o estado atual. */
+function barraExemplo(){
+  var tem = ["contas","cartoes","categorias","lancamentos"].some(function(k){
+    return D[k].some(function(r){ return r.exemplo; }); });
+  var bar = document.getElementById("barraExemplo");
+  if(!bar){
+    bar = document.createElement("div");
+    bar.id = "barraExemplo";
+    bar.style.cssText = "position:fixed;right:16px;bottom:16px;z-index:50;display:flex;gap:8px";
+    document.body.appendChild(bar);
+  }
+  var html = tem
+    ? '<button class="btn perigo" data-act="limparExemplo">Apagar dados de exemplo</button>'
+    : '<button class="btn" data-act="carregarExemplo">Carregar dados de exemplo</button>';
+  if(bar.innerHTML !== html) bar.innerHTML = html;
+}
+
+document.addEventListener("click", function(ev){
+  var nav = ev.target.closest(".nav button[data-view]");
+  if(nav){ estado.view = nav.dataset.view; render(); return; }
+  var b = ev.target.closest("[data-act]");
+  if(!b) return;
+  var act = b.dataset.act;
+  if(ACOES[act]) ACOES[act](b);
+});
+
+/* ===================================================================
+   Painel
+=================================================================== */
+function mesAtualLanc(){
+  return D.lancamentos.filter(function(l){ return ym(l.data)===estado.mes; });
+}
+
+function vPainel(){
+  var m = mesAtualLanc();
+  var receitas = m.filter(l=>l.tipo==="receita").reduce((a,l)=>a+Number(l.valor),0);
+  var despesas = m.filter(l=>l.tipo==="despesa").reduce((a,l)=>a+Number(l.valor),0);
+
+  // gastos por categoria no mês
+  var porCat = {};
+  m.filter(l=>l.tipo==="despesa").forEach(function(l){
+    var c = categoria(l.categoria_id); var nome = c?c.nome:"Sem categoria";
+    porCat[nome] = (porCat[nome]||0) + Number(l.valor);
+  });
+  var cats = Object.keys(porCat).map(k=>({nome:k,valor:porCat[k]})).sort((a,b)=>b.valor-a.valor).slice(0,8);
+  var maxCat = cats.length ? cats[0].valor : 1;
+
+  // próximas contas a vencer: o que está vencido + o que vence nos próximos 2 meses
+  var limiteProx = addMeses(hoje(), 2);
+  var proxTodas = D.lancamentos.filter(function(l){
+    return l.forma==="conta" && l.status!=="pago" && l.tipo==="despesa"
+           && String(l.data).slice(0,10) <= limiteProx;
+  }).sort((a,b)=> a.data < b.data ? -1 : 1);
+  var prox = proxTodas.slice(0,6);
+
+  // faturas
+  var fats = D.faturas.filter(f=>f.status!=="paga").map(function(f){
+    return { f:f, c:cartao(f.cartao_id), total: totalFatura(f) };
+  }).filter(x=>x.c && x.total>0).sort((a,b)=> a.f.vencimento < b.f.vencimento ? -1 : 1).slice(0,6);
+
+  var saldo = saldoTotal();
+
+  return topoMes("Painel", "Resumo de "+mesBR(estado.mes)) +
+  '<div class="kpis">'+
+    kpi("Saldo total em contas", BRL(saldo), D.contas.length+" conta(s) cadastrada(s)", saldo<0?"neg":"") +
+    kpi("Receitas do mês", BRL(receitas), m.filter(l=>l.tipo==="receita").length+" lançamento(s)", "pos") +
+    kpi("Despesas do mês", BRL(despesas), m.filter(l=>l.tipo==="despesa").length+" lançamento(s)", "neg") +
+    kpi("Resultado do mês", BRL(receitas-despesas), receitas-despesas>=0?"Sobrou":"Faltou", receitas-despesas>=0?"pos":"neg") +
+  '</div>'+
+
+  '<div class="grid2">'+
+    '<div class="card"><div class="card-h"><h3>Gastos por categoria</h3>'+
+      '<span class="legenda">'+mesBR(estado.mes)+'</span></div>'+
+      '<div class="card-b">'+ (cats.length ?
+        '<div class="barras">'+cats.map(function(c){
+          return '<div><div class="barra-l"><span>'+esc(c.nome)+'</span>'+
+            '<span class="num forte">'+BRL(c.valor)+'</span></div>'+
+            '<div class="barra"><i style="width:'+(c.valor/maxCat*100)+'%"></i></div></div>';
+        }).join("")+'</div>'
+        : '<div class="vazio">Nenhuma despesa neste mês.</div>') +
+      '</div></div>'+
+
+    '<div>'+
+      '<div class="card"><div class="card-h"><h3>Próximas contas a vencer</h3>'+
+        '<span class="legenda">'+(proxTodas.length>prox.length
+          ? "as 6 primeiras de "+proxTodas.length : "até "+dBR(limiteProx))+'</span></div>'+
+        (prox.length ? '<div class="tabela-rolagem"><table><tbody>'+prox.map(function(l){
+          var st = statusLanc(l);
+          return '<tr><td><span class="forte">'+esc(l.descricao)+'</span>'+
+            '<div class="legenda">'+dBR(l.data)+' · '+esc(nomeCat(l))+'</div></td>'+
+            '<td class="r num">'+BRL(l.valor)+'<div>'+selo(st)+'</div></td></tr>';
+        }).join("")+'</tbody></table></div>' : '<div class="vazio">Nada em aberto.</div>')+
+      '</div>'+
+      '<div class="card"><div class="card-h"><h3>Faturas de cartão</h3></div>'+
+        (fats.length ? '<div class="tabela-rolagem"><table><tbody>'+fats.map(function(x){
+          return '<tr><td><span class="forte">'+esc(x.c.nome)+'</span>'+
+            '<div class="legenda">vence '+dBR(x.f.vencimento)+'</div></td>'+
+            '<td class="r num">'+BRL(x.total)+'<div>'+selo(x.f.status)+'</div></td></tr>';
+        }).join("")+'</tbody></table></div>' : '<div class="vazio">Nenhuma fatura aberta.</div>')+
+      '</div>'+
+    '</div>'+
+  '</div>';
+}
+
+function kpi(rot, val, det, cls){
+  return '<div class="kpi"><div class="rotulo">'+esc(rot)+'</div>'+
+    '<div class="v '+(cls||"")+'">'+val+'</div><div class="d">'+esc(det)+'</div></div>';
+}
+function topoMes(titulo, sub){
+  return '<div class="topo"><div><h1>'+esc(titulo)+'</h1><p class="legenda">'+esc(sub)+'</p></div>'+
+    '<div class="acoes">'+
+      '<input type="month" value="'+estado.mes+'" data-act="mudarMes" style="height:34px;border:1px solid var(--border-strong);border-radius:var(--radius-md);padding:0 10px;background:var(--surface-000)">'+
+      '<button class="btn primary" data-act="novoLanc">+ Lançamento</button>'+
+    '</div></div>';
+}
+
+/* ===================================================================
+   Lançamentos
+=================================================================== */
+function filtrar(lista){
+  var f = estado.filtros;
+  return lista.filter(function(l){
+    if(f.de && l.data < f.de) return false;
+    if(f.ate && l.data > f.ate) return false;
+    if(f.tipo && l.tipo !== f.tipo) return false;
+    if(f.forma && l.forma !== f.forma) return false;
+    if(f.categoria && l.categoria_id !== f.categoria) return false;
+    if(f.status && statusLanc(l) !== f.status) return false;
+    return true;
+  }).sort(function(a,b){ return a.data < b.data ? 1 : a.data > b.data ? -1 : 0; });
+}
+
+function vLancamentos(){
+  var f = estado.filtros;
+  var lista = filtrar(D.lancamentos);
+  var rec = lista.filter(l=>l.tipo==="receita").reduce((a,l)=>a+Number(l.valor),0);
+  var des = lista.filter(l=>l.tipo==="despesa").reduce((a,l)=>a+Number(l.valor),0);
+
+  return '<div class="topo"><div><h1>Lançamentos</h1>'+
+    '<p class="legenda">'+lista.length+' lançamento(s) · receitas '+BRL(rec)+' · despesas '+BRL(des)+'</p></div>'+
+    '<div class="acoes"><button class="btn" data-act="novaRecorrencia">+ Recorrente</button>'+
+    '<button class="btn primary" data-act="novoLanc">+ Lançamento</button></div></div>'+
+
+    '<div class="card"><div class="card-b"><div class="filtros">'+
+      campoFiltro("de","De","date",f.de)+
+      campoFiltro("ate","Até","date",f.ate)+
+      selFiltro("tipo","Tipo",[["","Todos"],["receita","Receitas"],["despesa","Despesas"]],f.tipo)+
+      selFiltro("forma","Forma",[["","Todas"],["conta","Conta"],["cartao","Cartão"]],f.forma)+
+      selFiltro("status","Situação",[["","Todas"],["pago","Pago"],["pendente","Pendente"],
+        ["vencido","Vencido"],["fatura","Na fatura"]],f.status)+
+      selFiltro("categoria","Categoria",[["","Todas"]].concat(D.categorias.map(c=>[c.id,c.nome])),f.categoria)+
+      '<div><button class="btn" data-act="limparFiltros" style="width:100%">Limpar filtros</button></div>'+
+    '</div></div></div>'+
+
+    '<div class="card">'+ (lista.length ?
+      '<div class="tabela-rolagem"><table><thead><tr>'+
+        '<th>Data</th><th>Descrição</th><th>Categoria</th><th>Origem</th>'+
+        '<th class="r">Valor</th><th>Situação</th><th></th></tr></thead><tbody>'+
+        lista.map(linhaLanc).join("")+
+      '</tbody></table></div>'
+      : '<div class="vazio"><h4>Nenhum lançamento</h4><p>Ajuste os filtros ou registre o primeiro.</p></div>')+
+    '</div>';
+}
+
+function linhaLanc(l){
+  var st = statusLanc(l);
+  var origem = l.forma==="cartao"
+    ? ((cartao(l.cartao_id)||{}).nome||"cartão") + (l.parcela_total>1 ? " · "+l.parcela_num+"/"+l.parcela_total : "")
+    : ((conta(l.conta_id)||{}).nome||"conta");
+  return '<tr><td class="num">'+dBR(l.data)+'</td>'+
+    '<td><span class="forte">'+esc(l.descricao)+'</span>'+
+      (l.recorrencia_id?'<div class="legenda">recorrente</div>':"")+'</td>'+
+    '<td>'+esc(nomeCat(l))+'</td>'+
+    '<td>'+esc(origem)+'</td>'+
+    '<td class="r num '+(l.tipo==="receita"?"pos":"")+'">'+(l.tipo==="receita"?"+":"−")+BRL(l.valor).replace("R$","R$")+'</td>'+
+    '<td>'+selo(st)+'</td>'+
+    '<td class="r"><div class="acoes" style="justify-content:flex-end">'+
+      (l.forma==="conta" && l.status!=="pago" ? '<button class="btn sm" data-act="pagarLanc" data-id="'+l.id+'">Pagar</button>' : "")+
+      '<button class="btn sm" data-act="apagarLanc" data-id="'+l.id+'">Excluir</button>'+
+    '</div></td></tr>';
+}
+
+function campoFiltro(k,rot,tipo,val){
+  return '<div class="campo" style="margin:0"><label class="rotulo">'+rot+'</label>'+
+    '<input type="'+tipo+'" data-act="filtro" data-k="'+k+'" value="'+(val||"")+'"></div>';
+}
+function selFiltro(k,rot,ops,val){
+  return '<div class="campo" style="margin:0"><label class="rotulo">'+rot+'</label><select data-act="filtro" data-k="'+k+'">'+
+    ops.map(function(o){ return '<option value="'+esc(o[0])+'"'+(String(val)===String(o[0])?" selected":"")+'>'+esc(o[1])+'</option>'; }).join("")+
+    '</select></div>';
+}
+
+/* ===================================================================
+   Contas
+=================================================================== */
+var TIPOS_CONTA = [["corrente","Conta corrente"],["poupanca","Poupança"],
+                   ["investimento","Investimento"],["dinheiro","Dinheiro em espécie"]];
+
+function vContas(){
+  if(estado.contaExtrato) return vExtrato();
+  return '<div class="topo"><div><h1>Contas bancárias</h1>'+
+    '<p class="legenda">Saldo total '+BRL(saldoTotal())+'</p></div>'+
+    '<div class="acoes"><button class="btn primary" data-act="novaConta">+ Conta</button></div></div>'+
+    (D.contas.length ? '<div class="card"><div class="tabela-rolagem"><table>'+
+      '<thead><tr><th>Conta</th><th>Instituição</th><th>Tipo</th>'+
+      '<th class="r">Saldo inicial</th><th class="r">Saldo atual</th><th></th></tr></thead><tbody>'+
+      D.contas.map(function(c){
+        var s = saldoConta(c.id);
+        return '<tr><td class="forte">'+esc(c.nome)+'</td><td>'+esc(c.instituicao||"—")+'</td>'+
+          '<td>'+esc((TIPOS_CONTA.filter(t=>t[0]===c.tipo)[0]||["","—"])[1])+'</td>'+
+          '<td class="r num">'+BRL(c.saldo_inicial)+'</td>'+
+          '<td class="r num forte '+(s<0?"neg":"")+'">'+BRL(s)+'</td>'+
+          '<td class="r"><div class="acoes" style="justify-content:flex-end">'+
+            '<button class="btn sm" data-act="verExtrato" data-id="'+c.id+'">Extrato</button>'+
+            '<button class="btn sm" data-act="apagarConta" data-id="'+c.id+'">Excluir</button>'+
+          '</div></td></tr>';
+      }).join("")+'</tbody></table></div></div>'
+    : '<div class="card"><div class="vazio"><h4>Nenhuma conta cadastrada</h4>'+
+      '<p>Cadastre a primeira conta para começar a lançar receitas e despesas.</p></div></div>');
+}
+
+function vExtrato(){
+  var c = conta(estado.contaExtrato);
+  if(!c){ estado.contaExtrato=null; return vContas(); }
+  var f = estado.filtros;
+  var lista = filtrar(D.lancamentos.filter(l=>l.forma==="conta" && l.conta_id===c.id))
+              .slice().sort(function(a,b){ return a.data < b.data ? -1 : 1; });
+  var acum = Number(c.saldo_inicial)||0;
+  var linhas = lista.map(function(l){
+    var val = (l.tipo==="receita"?1:-1)*Number(l.valor);
+    if(l.status==="pago") acum += val;
+    return '<tr><td class="num">'+dBR(l.data)+'</td>'+
+      '<td><span class="forte">'+esc(l.descricao)+'</span><div class="legenda">'+esc(nomeCat(l))+'</div></td>'+
+      '<td class="r num '+(l.tipo==="receita"?"pos":"neg")+'">'+(l.tipo==="receita"?"+":"−")+BRL(l.valor)+'</td>'+
+      '<td>'+selo(statusLanc(l))+'</td>'+
+      '<td class="r num forte">'+(l.status==="pago"?BRL(acum):"—")+'</td></tr>';
+  }).join("");
+
+  return '<div class="topo"><div><h1>Extrato · '+esc(c.nome)+'</h1>'+
+    '<p class="legenda">Saldo inicial '+BRL(c.saldo_inicial)+' · saldo atual '+BRL(saldoConta(c.id))+'</p></div>'+
+    '<div class="acoes"><button class="btn" data-act="voltarContas">Voltar</button></div></div>'+
+    '<div class="card"><div class="card-b"><div class="filtros">'+
+      campoFiltro("de","De","date",f.de)+ campoFiltro("ate","Até","date",f.ate)+
+      selFiltro("tipo","Tipo",[["","Todos"],["receita","Receitas"],["despesa","Despesas"]],f.tipo)+
+      selFiltro("categoria","Categoria",[["","Todas"]].concat(D.categorias.map(c2=>[c2.id,c2.nome])),f.categoria)+
+      '<div><button class="btn" data-act="limparFiltros" style="width:100%">Limpar</button></div>'+
+    '</div></div></div>'+
+    '<div class="card">'+(lista.length ?
+      '<div class="tabela-rolagem"><table><thead><tr><th>Data</th><th>Descrição</th>'+
+      '<th class="r">Valor</th><th>Situação</th><th class="r">Saldo acumulado</th></tr></thead>'+
+      '<tbody>'+linhas+'</tbody></table></div>'
+      : '<div class="vazio">Sem lançamentos nesta conta com os filtros atuais.</div>')+'</div>';
+}
+
+/* ===================================================================
+   Cartões
+=================================================================== */
+function vCartoes(){
+  return '<div class="topo"><div><h1>Cartões de crédito</h1>'+
+    '<p class="legenda">'+D.cartoes.length+' cartão(ões)</p></div>'+
+    '<div class="acoes"><button class="btn primary" data-act="novoCartao">+ Cartão</button></div></div>'+
+    (D.cartoes.length ? '<div class="kpis">'+D.cartoes.map(function(c){
+      var usado = usoCartao(c.id), disp = limiteDisponivel(c.id);
+      var pctUso = c.limite_total>0 ? Math.min(usado/c.limite_total*100,100) : 0;
+      var cor = pctUso>=90 ? "var(--negative)" : pctUso>=70 ? "var(--caution)" : "var(--chart-1)";
+      return '<div class="kpi"><div class="rotulo">'+esc(c.nome)+'</div>'+
+        '<div class="v">'+BRL(disp)+'</div>'+
+        '<div class="d">disponível de '+BRL(c.limite_total)+'</div>'+
+        '<div class="medidor"><i style="width:'+pctUso+'%;background:'+cor+'"></i></div>'+
+        '<div class="d">usado '+BRL(usado)+' ('+PCT(pctUso)+' do limite)</div>'+
+        '<div class="d">'+esc(c.emissor||"—")+' · fecha dia '+c.dia_fechamento+' · vence dia '+c.dia_vencimento+'</div>'+
+        '<div class="acoes" style="margin-top:12px">'+
+          '<button class="btn sm" data-act="verFaturas" data-id="'+c.id+'">Faturas</button>'+
+          '<button class="btn sm" data-act="apagarCartao" data-id="'+c.id+'">Excluir</button>'+
+        '</div></div>';
+    }).join("")+'</div>'
+    : '<div class="card"><div class="vazio"><h4>Nenhum cartão cadastrado</h4>'+
+      '<p>Cadastre um cartão para lançar compras à vista ou parceladas.</p></div></div>');
+}
+
+/* ===================================================================
+   Faturas
+=================================================================== */
+function vFaturas(){
+  var cid = estado.cartaoFatura || (D.cartoes[0] && D.cartoes[0].id);
+  var c = cartao(cid);
+  if(!c) return '<div class="topo"><div><h1>Faturas</h1></div></div>'+
+    '<div class="card"><div class="vazio"><h4>Nenhum cartão cadastrado</h4>'+
+    '<p>As faturas aparecem depois que você cadastrar um cartão e lançar compras.</p></div></div>';
+
+  var fats = D.faturas.filter(f=>f.cartao_id===c.id)
+    .map(f=>({f:f,total:totalFatura(f)}))
+    .sort((a,b)=> a.f.competencia < b.f.competencia ? 1 : -1);
+
+  var sel = estado.competenciaFatura ||
+    (fats.filter(x=>x.f.status!=="paga")[0]||fats[0]||{f:{}}).f.competencia;
+  var atual = fats.filter(x=>x.f.competencia===sel)[0];
+
+  var itens = atual ? D.lancamentos.filter(l=>l.fatura_id===atual.f.id)
+    .sort((a,b)=> a.data < b.data ? -1 : 1) : [];
+
+  return '<div class="topo"><div><h1>Faturas</h1>'+
+    '<p class="legenda">'+esc(c.nome)+' · fecha dia '+c.dia_fechamento+', vence dia '+c.dia_vencimento+'</p></div>'+
+    '<div class="acoes">'+
+      '<select data-act="trocarCartaoFatura" style="height:34px;border:1px solid var(--border-strong);border-radius:var(--radius-md);padding:0 10px;background:var(--surface-000)">'+
+        D.cartoes.map(k=>'<option value="'+k.id+'"'+(k.id===c.id?" selected":"")+'>'+esc(k.nome)+'</option>').join("")+
+      '</select>'+
+      (fats.length ? '<select data-act="trocarCompetencia" style="height:34px;border:1px solid var(--border-strong);border-radius:var(--radius-md);padding:0 10px;background:var(--surface-000)">'+
+        fats.map(x=>'<option value="'+x.f.competencia+'"'+(x.f.competencia===sel?" selected":"")+'>'+mesBR(x.f.competencia)+'</option>').join("")+
+      '</select>' : "")+
+    '</div></div>'+
+
+    (!atual ? '<div class="card"><div class="vazio">Nenhuma fatura gerada para este cartão ainda.</div></div>' :
+    '<div class="kpis">'+
+      kpi("Total da fatura", BRL(atual.total), itens.length+" item(ns)") +
+      kpi("Vencimento", dBR(atual.f.vencimento), "fechamento "+dBR(atual.f.fechamento)) +
+      kpi("Situação", atual.f.status==="paga"?"Paga":"Aberta",
+          atual.f.status==="paga" ? ("pago em "+dBR(atual.f.pago_em)) : "aguardando pagamento",
+          atual.f.status==="paga"?"pos":"cau") +
+    '</div>'+
+    '<div class="card"><div class="card-h"><h3>Compras e parcelas</h3>'+
+      (atual.f.status!=="paga" && atual.total>0
+        ? '<button class="btn primary" data-act="pagarFatura" data-id="'+atual.f.id+'">Registrar pagamento</button>' : "")+
+    '</div>'+
+    (itens.length ? '<div class="tabela-rolagem"><table><thead><tr><th>Data</th><th>Descrição</th>'+
+      '<th>Categoria</th><th>Parcela</th><th class="r">Valor</th><th></th></tr></thead><tbody>'+
+      itens.map(function(l){
+        return '<tr><td class="num">'+dBR(l.data)+'</td>'+
+          '<td class="forte">'+esc(l.descricao)+'</td>'+
+          '<td>'+esc(nomeCat(l))+'</td>'+
+          '<td class="num">'+(l.parcela_total>1 ? l.parcela_num+"/"+l.parcela_total : "à vista")+'</td>'+
+          '<td class="r num">'+BRL(l.valor)+'</td>'+
+          '<td class="r">'+(atual.f.status!=="paga" ?
+            '<button class="btn sm" data-act="apagarLanc" data-id="'+l.id+'">Excluir</button>' : "")+'</td></tr>';
+      }).join("")+'</tbody>'+
+      '<tfoot><tr><td colspan="4">Total</td><td class="r num">'+BRL(atual.total)+'</td><td></td></tr></tfoot>'+
+      '</table></div>' : '<div class="vazio">Nenhuma compra nesta fatura.</div>')+
+    '</div>');
+}
+
+/* ===================================================================
+   Categorias
+=================================================================== */
+function vCategorias(){
+  function bloco(tipo, titulo){
+    var cats = D.categorias.filter(c=>c.tipo===tipo);
+    return '<div class="card"><div class="card-h"><h3>'+titulo+'</h3>'+
+      '<button class="btn sm" data-act="novaCategoria" data-tipo="'+tipo+'">+ Categoria</button></div>'+
+      (cats.length ? '<div class="tabela-rolagem"><table><tbody>'+cats.map(function(c){
+        var subs = D.subcategorias.filter(s=>s.categoria_id===c.id);
+        return '<tr><td><span class="forte">'+esc(c.nome)+'</span>'+
+          (subs.length ? '<div class="legenda">'+subs.map(s=>esc(s.nome)).join(" · ")+'</div>' : '<div class="legenda">sem subcategorias</div>')+
+          '</td><td class="r"><div class="acoes" style="justify-content:flex-end">'+
+          '<button class="btn sm" data-act="novaSub" data-id="'+c.id+'">+ Subcategoria</button>'+
+          '<button class="btn sm" data-act="apagarCategoria" data-id="'+c.id+'">Excluir</button>'+
+          '</div></td></tr>';
+      }).join("")+'</tbody></table></div>' : '<div class="vazio">Nenhuma categoria de '+tipo+'.</div>')+
+    '</div>';
+  }
+  return '<div class="topo"><div><h1>Categorias</h1>'+
+    '<p class="legenda">Listas separadas para receitas e despesas</p></div></div>'+
+    '<div class="grid2">'+bloco("receita","Receitas")+bloco("despesa","Despesas")+'</div>';
+}
+
+/* ===================================================================
+   Relatórios
+=================================================================== */
+function vRelatorios(){
+  var m = D.lancamentos.filter(l=>ym(l.data)===estado.mes);
+  function agrupar(chave, rotulo){
+    var mapa = {};
+    m.forEach(function(l){
+      var k = chave(l); if(k===null) return;
+      if(!mapa[k]) mapa[k] = {receita:0,despesa:0};
+      mapa[k][l.tipo] += Number(l.valor);
+    });
+    var linhas = Object.keys(mapa).map(k=>({k:k,r:mapa[k].receita,d:mapa[k].despesa}))
+      .sort((a,b)=>(b.r+b.d)-(a.r+a.d));
+    if(!linhas.length) return '<div class="vazio">Sem dados em '+mesBR(estado.mes)+'.</div>';
+    return '<div class="tabela-rolagem"><table><thead><tr><th>'+rotulo+'</th>'+
+      '<th class="r">Receitas</th><th class="r">Despesas</th><th class="r">Saldo</th></tr></thead><tbody>'+
+      linhas.map(function(x){
+        return '<tr><td class="forte">'+esc(x.k)+'</td>'+
+          '<td class="r num pos">'+(x.r?BRL(x.r):"—")+'</td>'+
+          '<td class="r num neg">'+(x.d?BRL(x.d):"—")+'</td>'+
+          '<td class="r num '+((x.r-x.d)>=0?"pos":"neg")+'">'+BRL(x.r-x.d)+'</td></tr>';
+      }).join("")+'</tbody><tfoot><tr><td>Total</td>'+
+      '<td class="r num">'+BRL(linhas.reduce((a,x)=>a+x.r,0))+'</td>'+
+      '<td class="r num">'+BRL(linhas.reduce((a,x)=>a+x.d,0))+'</td>'+
+      '<td class="r num">'+BRL(linhas.reduce((a,x)=>a+x.r-x.d,0))+'</td></tr></tfoot></table></div>';
+  }
+
+  return topoMes("Relatórios","Consolidado de "+mesBR(estado.mes))+
+    '<div class="card"><div class="card-h"><h3>Por categoria</h3></div>'+
+      agrupar(function(l){ var c=categoria(l.categoria_id); return c?c.nome:"Sem categoria"; },"Categoria")+'</div>'+
+    '<div class="card"><div class="card-h"><h3>Por subcategoria</h3></div>'+
+      agrupar(function(l){ var s=subcategoria(l.subcategoria_id); if(!s) return null;
+        var c=categoria(l.categoria_id); return (c?c.nome+" · ":"")+s.nome; },"Subcategoria")+'</div>'+
+    '<div class="card"><div class="card-h"><h3>Por conta bancária</h3></div>'+
+      agrupar(function(l){ if(l.forma!=="conta") return null; var c=conta(l.conta_id); return c?c.nome:null; },"Conta")+'</div>'+
+    '<div class="card"><div class="card-h"><h3>Por cartão de crédito</h3></div>'+
+      agrupar(function(l){ if(l.forma!=="cartao") return null; var c=cartao(l.cartao_id); return c?c.nome:null; },"Cartão")+'</div>';
+}
+
+/* ===================================================================
+   Diálogos
+=================================================================== */
+function abrirDialogo(titulo, corpoHtml, aoConfirmar, rotuloConfirmar){
+  var d = document.createElement("dialog");
+  d.innerHTML = '<form method="dialog"><div class="dlg-h"><h3>'+esc(titulo)+'</h3></div>'+
+    '<div class="dlg-b">'+corpoHtml+'<p class="erro" id="dlgErro" style="display:none"></p></div>'+
+    '<div class="dlg-f"><button class="btn" value="cancelar" type="submit">Cancelar</button>'+
+    '<button class="btn primary" id="dlgOk" type="button">'+esc(rotuloConfirmar||"Salvar")+'</button></div></form>';
+  document.body.appendChild(d);
+  d.addEventListener("close", function(){ d.remove(); });
+  $("#dlgOk", d).addEventListener("click", async function(){
+    var erro = $("#dlgErro", d);
+    erro.style.display = "none";
+    try{
+      var r = await aoConfirmar(d);
+      if(r === false) return;
+      d.close();
+      render();
+    }catch(e){
+      erro.textContent = (e && e.message) ? e.message : String(e);
+      erro.style.display = "block";
+    }
+  });
+  d.showModal();
+  var p = d.querySelector("input,select,textarea"); if(p) p.focus();
+  return d;
+}
+function falha(msg){ throw new Error(msg); }
+
+function opcoesCategoria(tipo, sel){
+  return '<option value="">— escolha —</option>'+
+    D.categorias.filter(c=>c.tipo===tipo).map(c=>'<option value="'+c.id+'"'+(c.id===sel?" selected":"")+'>'+esc(c.nome)+'</option>').join("");
+}
+function opcoesSub(catId, sel){
+  return '<option value="">— nenhuma —</option>'+
+    D.subcategorias.filter(s=>s.categoria_id===catId).map(s=>'<option value="'+s.id+'"'+(s.id===sel?" selected":"")+'>'+esc(s.nome)+'</option>').join("");
+}
+function opcoesConta(sel){
+  return '<option value="">— escolha —</option>'+
+    D.contas.map(c=>'<option value="'+c.id+'"'+(c.id===sel?" selected":"")+'>'+esc(c.nome)+' ('+BRL(saldoConta(c.id))+')</option>').join("");
+}
+function opcoesCartao(sel){
+  return '<option value="">— escolha —</option>'+
+    D.cartoes.map(c=>'<option value="'+c.id+'"'+(c.id===sel?" selected":"")+'>'+esc(c.nome)+'</option>').join("");
+}
+
+function corpoLancamento(){
+  return '<div class="linha l2">'+
+      '<div class="campo"><label class="rotulo">Tipo</label><select id="fTipo">'+
+        '<option value="despesa">Despesa</option><option value="receita">Receita</option></select></div>'+
+      '<div class="campo"><label class="rotulo">Forma</label><select id="fForma">'+
+        '<option value="conta">Conta bancária</option><option value="cartao">Cartão de crédito</option></select></div>'+
+    '</div>'+
+    '<div class="campo"><label class="rotulo">Descrição</label><input id="fDesc" placeholder="ex.: Supermercado"></div>'+
+    '<div class="linha l2">'+
+      '<div class="campo"><label class="rotulo">Valor (R$)</label><input id="fValor" type="number" step="0.01" min="0.01" placeholder="0,00"></div>'+
+      '<div class="campo"><label class="rotulo">Data</label><input id="fData" type="date" value="'+hoje()+'"></div>'+
+    '</div>'+
+    '<div class="linha l2">'+
+      '<div class="campo"><label class="rotulo">Categoria</label><select id="fCat">'+opcoesCategoria("despesa")+'</select></div>'+
+      '<div class="campo"><label class="rotulo">Subcategoria</label><select id="fSub"><option value="">— nenhuma —</option></select></div>'+
+    '</div>'+
+    '<div class="campo" id="blocoConta"><label class="rotulo">Conta bancária</label><select id="fConta">'+opcoesConta()+'</select></div>'+
+    '<div id="blocoCartao" style="display:none">'+
+      '<div class="campo"><label class="rotulo">Cartão</label><select id="fCartao">'+opcoesCartao()+'</select></div>'+
+      '<div class="linha l2">'+
+        '<div class="campo"><label class="rotulo">Parcelas</label><input id="fParcelas" type="number" min="1" max="60" value="1"></div>'+
+        '<div class="campo"><label class="rotulo">&nbsp;</label><div class="legenda" id="infoCartao">—</div></div>'+
+      '</div>'+
+    '</div>'+
+    '<div class="campo"><label class="rotulo">Situação</label><select id="fStatus">'+
+      '<option value="pago">Já pago / recebido</option><option value="pendente">Pendente</option></select></div>'+
+    '<div class="campo"><label class="rotulo">Observação</label><textarea id="fObs"></textarea></div>';
+}
+
+function ligarFormLanc(d){
+  function sync(){
+    var forma = $("#fForma",d).value, tipo = $("#fTipo",d).value;
+    // receita só entra em conta
+    if(tipo==="receita"){ $("#fForma",d).value="conta"; forma="conta"; $("#fForma",d).disabled=true; }
+    else $("#fForma",d).disabled=false;
+    $("#blocoConta",d).style.display = forma==="conta" ? "" : "none";
+    $("#blocoCartao",d).style.display = forma==="cartao" ? "" : "none";
+    $("#fStatus",d).parentNode.style.display = forma==="cartao" ? "none" : "";
+    var cat = $("#fCat",d);
+    var atual = cat.value;
+    cat.innerHTML = opcoesCategoria(tipo, atual);
+    $("#fSub",d).innerHTML = opcoesSub(cat.value);
+    var c = cartao($("#fCartao",d).value);
+    $("#infoCartao",d).textContent = c
+      ? "Disponível "+BRL(limiteDisponivel(c.id))+" · fecha dia "+c.dia_fechamento
+      : "—";
+  }
+  ["#fTipo","#fForma","#fCartao"].forEach(function(s){ $(s,d).addEventListener("change", sync); });
+  $("#fCat",d).addEventListener("change", function(){ $("#fSub",d).innerHTML = opcoesSub($("#fCat",d).value); });
+  sync();
+}
+
+/* ===================================================================
+   Ações
+=================================================================== */
+var ACOES = {
+  mudarMes: function(){},   // tratado no change abaixo
+  filtro: function(){},
+
+  trocarTema: function(){
+    aplicarTema(temaAtual()==="dark" ? "light" : "dark");
+  },
+
+  limparFiltros: function(){
+    estado.filtros = { de:"", ate:"", status:"", categoria:"", forma:"", tipo:"" };
+    render();
+  },
+
+  novoLanc: function(){
+    if(!D.categorias.length) return alert("Cadastre ao menos uma categoria antes de lançar.");
+    var d = abrirDialogo("Novo lançamento", corpoLancamento(), async function(d){
+      var tipo=$("#fTipo",d).value, forma=$("#fForma",d).value;
+      var desc=$("#fDesc",d).value.trim(), valor=Number($("#fValor",d).value);
+      var data=$("#fData",d).value, cat=$("#fCat",d).value, sub=$("#fSub",d).value;
+      var obs=$("#fObs",d).value.trim();
+
+      if(!desc) falha("Informe a descrição.");
+      if(!(valor>0)) falha("Informe um valor maior que zero.");
+      if(!data) falha("Informe a data.");
+      if(!cat) falha("Escolha uma categoria — lançamento sem categoria não é aceito.");
+
+      if(forma==="conta"){
+        var contaId=$("#fConta",d).value;
+        if(!contaId) falha("Escolha a conta bancária.");
+        var novo = (await API.inserir("fin_lancamentos", {
+          tipo:tipo, forma:"conta", descricao:desc, valor:valor, data:data,
+          categoria_id:cat, subcategoria_id:sub||null, conta_id:contaId,
+          status:$("#fStatus",d).value, pago_em: $("#fStatus",d).value==="pago"?data:null,
+          observacao:obs||null
+        }))[0];
+        D.lancamentos.push(novo);
+        return;
+      }
+
+      // cartão
+      var cartaoId=$("#fCartao",d).value;
+      if(!cartaoId) falha("Escolha o cartão de crédito.");
+      var c = cartao(cartaoId);
+      var n = Math.max(1, Math.min(60, parseInt($("#fParcelas",d).value,10)||1));
+      var disp = limiteDisponivel(c.id);
+      if(valor > disp){
+        if(!confirm("Esta compra de "+BRL(valor)+" ultrapassa o limite disponível de "+BRL(disp)+
+                    " neste cartão.\n\nLançar mesmo assim?")) return false;
+      }
+      var valores = dividirParcelas(valor, n);
+      var compraId = uid();
+      var ciclo = faturaDaCompra(c, data);
+      var linhas = [];
+      for(var i=0;i<n;i++){
+        var cic = i===0 ? ciclo : faturaSeguinte(c, ciclo.competencia, i);
+        var fid = await garantirFatura(c, cic);
+        linhas.push({
+          tipo:"despesa", forma:"cartao", descricao:desc, valor:valores[i],
+          data: i===0 ? data : cic.fechamento,
+          categoria_id:cat, subcategoria_id:sub||null, cartao_id:c.id, fatura_id:fid,
+          status:"pendente", compra_id:compraId, parcela_num:i+1, parcela_total:n,
+          observacao:obs||null
+        });
+      }
+      var ins = await API.inserir("fin_lancamentos", linhas);
+      D.lancamentos = D.lancamentos.concat(ins);
+    });
+    ligarFormLanc(d);
+  },
+
+  novaRecorrencia: function(){
+    if(!D.categorias.length) return alert("Cadastre ao menos uma categoria antes.");
+    var corpo = corpoLancamento()
+      .replace('<div class="campo"><label class="rotulo">Situação</label>','<div class="campo" style="display:none"><label class="rotulo">Situação</label>')
+      + '<div class="linha l3">'+
+        '<div class="campo"><label class="rotulo">Dia do mês</label><input id="fDia" type="number" min="1" max="31" value="'+new Date().getDate()+'"></div>'+
+        '<div class="campo"><label class="rotulo">Início</label><input id="fInicio" type="date" value="'+hoje()+'"></div>'+
+        '<div class="campo"><label class="rotulo">Término (opcional)</label><input id="fFim" type="date"></div>'+
+      '</div>';
+    var d = abrirDialogo("Nova despesa/receita recorrente", corpo, async function(d){
+      var tipo=$("#fTipo",d).value, forma=$("#fForma",d).value;
+      var desc=$("#fDesc",d).value.trim(), valor=Number($("#fValor",d).value);
+      var cat=$("#fCat",d).value, sub=$("#fSub",d).value;
+      var dia=parseInt($("#fDia",d).value,10), inicio=$("#fInicio",d).value, fim=$("#fFim",d).value;
+
+      if(!desc) falha("Informe a descrição.");
+      if(!(valor>0)) falha("Informe um valor maior que zero.");
+      if(!cat) falha("Escolha uma categoria.");
+      if(!(dia>=1 && dia<=31)) falha("Dia do mês inválido.");
+      if(!inicio) falha("Informe a data de início.");
+      if(fim && fim < inicio) falha("O término não pode ser antes do início.");
+      if(forma==="conta" && !$("#fConta",d).value) falha("Escolha a conta bancária.");
+      if(forma==="cartao" && !$("#fCartao",d).value) falha("Escolha o cartão.");
+
+      var nova = (await API.inserir("fin_recorrencias", {
+        tipo:tipo, forma:forma, descricao:desc, valor:valor,
+        categoria_id:cat, subcategoria_id:sub||null,
+        conta_id: forma==="conta" ? $("#fConta",d).value : null,
+        cartao_id: forma==="cartao" ? $("#fCartao",d).value : null,
+        dia:dia, inicio:inicio, fim:fim||null, ativo:true
+      }))[0];
+      D.recorrencias.push(nova);
+      await gerarRecorrencias();
+    }, "Criar recorrência");
+    ligarFormLanc(d);
+    $("#fData",d).parentNode.style.display="none";
+  },
+
+  pagarLanc: async function(b){
+    var l = D.lancamentos.filter(x=>x.id===b.dataset.id)[0];
+    if(!l) return;
+    await API.atualizar("fin_lancamentos", l.id, { status:"pago", pago_em:hoje() });
+    l.status="pago"; l.pago_em=hoje();
+    render();
+  },
+
+  apagarLanc: async function(b){
+    var l = D.lancamentos.filter(x=>x.id===b.dataset.id)[0];
+    if(!l) return;
+    var msg = l.compra_id
+      ? "Excluir esta parcela? As outras parcelas da mesma compra continuam."
+      : "Excluir este lançamento?";
+    if(!confirm(msg)) return;
+    await API.apagar("fin_lancamentos", l.id);
+    D.lancamentos = D.lancamentos.filter(x=>x.id!==l.id);
+    render();
+  },
+
+  novaConta: function(){
+    abrirDialogo("Nova conta bancária",
+      '<div class="campo"><label class="rotulo">Nome</label><input id="cNome" placeholder="ex.: Conta corrente"></div>'+
+      '<div class="linha l2">'+
+        '<div class="campo"><label class="rotulo">Instituição</label><input id="cInst" placeholder="ex.: Banco do Brasil"></div>'+
+        '<div class="campo"><label class="rotulo">Tipo</label><select id="cTipo">'+
+          TIPOS_CONTA.map(t=>'<option value="'+t[0]+'">'+t[1]+'</option>').join("")+'</select></div>'+
+      '</div>'+
+      '<div class="campo"><label class="rotulo">Saldo inicial (R$)</label><input id="cSaldo" type="number" step="0.01" value="0"></div>',
+      async function(d){
+        var nome=$("#cNome",d).value.trim();
+        if(!nome) falha("Informe o nome da conta.");
+        var nova = (await API.inserir("fin_contas", {
+          nome:nome, instituicao:$("#cInst",d).value.trim()||null,
+          tipo:$("#cTipo",d).value, saldo_inicial:Number($("#cSaldo",d).value)||0, ativo:true
+        }))[0];
+        D.contas.push(nova);
+      });
+  },
+
+  apagarConta: async function(b){
+    var id=b.dataset.id;
+    var usos = D.lancamentos.filter(l=>l.conta_id===id).length;
+    if(usos) return alert("Esta conta tem "+usos+" lançamento(s) e não pode ser excluída.");
+    if(!confirm("Excluir esta conta?")) return;
+    await API.apagar("fin_contas", id);
+    D.contas = D.contas.filter(c=>c.id!==id);
+    render();
+  },
+
+  verExtrato: function(b){ estado.contaExtrato=b.dataset.id; estado.view="contas"; render(); },
+  voltarContas: function(){ estado.contaExtrato=null; render(); },
+
+  novoCartao: function(){
+    abrirDialogo("Novo cartão de crédito",
+      '<div class="campo"><label class="rotulo">Nome</label><input id="kNome" placeholder="ex.: Cartão principal"></div>'+
+      '<div class="linha l2">'+
+        '<div class="campo"><label class="rotulo">Banco / emissor</label><input id="kEmissor" placeholder="ex.: Nubank"></div>'+
+        '<div class="campo"><label class="rotulo">Limite total (R$)</label><input id="kLimite" type="number" step="0.01" min="0" value="0"></div>'+
+      '</div>'+
+      '<div class="linha l2">'+
+        '<div class="campo"><label class="rotulo">Dia do fechamento</label><input id="kFech" type="number" min="1" max="31" value="1"></div>'+
+        '<div class="campo"><label class="rotulo">Dia do vencimento</label><input id="kVenc" type="number" min="1" max="31" value="10"></div>'+
+      '</div>',
+      async function(d){
+        var nome=$("#kNome",d).value.trim();
+        var fech=parseInt($("#kFech",d).value,10), venc=parseInt($("#kVenc",d).value,10);
+        if(!nome) falha("Informe o nome do cartão.");
+        if(!(fech>=1&&fech<=31)) falha("Dia de fechamento inválido.");
+        if(!(venc>=1&&venc<=31)) falha("Dia de vencimento inválido.");
+        var novo = (await API.inserir("fin_cartoes", {
+          nome:nome, emissor:$("#kEmissor",d).value.trim()||null,
+          limite_total:Number($("#kLimite",d).value)||0,
+          dia_fechamento:fech, dia_vencimento:venc, ativo:true
+        }))[0];
+        D.cartoes.push(novo);
+      });
+  },
+
+  apagarCartao: async function(b){
+    var id=b.dataset.id;
+    var usos = D.lancamentos.filter(l=>l.cartao_id===id).length;
+    if(usos) return alert("Este cartão tem "+usos+" lançamento(s) e não pode ser excluído.");
+    if(!confirm("Excluir este cartão?")) return;
+    await API.apagar("fin_cartoes", id);
+    D.cartoes = D.cartoes.filter(c=>c.id!==id);
+    render();
+  },
+
+  verFaturas: function(b){ estado.cartaoFatura=b.dataset.id; estado.competenciaFatura=null; estado.view="faturas"; render(); },
+
+  pagarFatura: function(b){
+    var f = fatura(b.dataset.id); if(!f) return;
+    var total = totalFatura(f);
+    abrirDialogo("Registrar pagamento da fatura",
+      '<div class="aviso">Fatura de <b>'+esc((cartao(f.cartao_id)||{}).nome||"")+'</b> · '+
+        'vencimento '+dBR(f.vencimento)+' · total <b>'+BRL(total)+'</b></div>'+
+      '<div class="campo"><label class="rotulo">Pagar com a conta</label><select id="pConta">'+opcoesConta()+'</select></div>'+
+      '<div class="linha l2">'+
+        '<div class="campo"><label class="rotulo">Data do pagamento</label><input id="pData" type="date" value="'+hoje()+'"></div>'+
+        '<div class="campo"><label class="rotulo">Valor (R$)</label><input id="pValor" type="number" step="0.01" value="'+total.toFixed(2)+'"></div>'+
+      '</div>',
+      async function(d){
+        var contaId=$("#pConta",d).value, data=$("#pData",d).value, valor=Number($("#pValor",d).value);
+        if(!contaId) falha("Escolha a conta que vai pagar a fatura.");
+        if(!(valor>0)) falha("Informe um valor maior que zero.");
+        var saldo = saldoConta(contaId);
+        if(valor > saldo)
+          falha("Saldo insuficiente: a conta tem "+BRL(saldo)+" e o pagamento é de "+BRL(valor)+".");
+
+        var cat = D.categorias.filter(c=>c.tipo==="despesa" && /fatura|cart/i.test(c.nome))[0]
+               || D.categorias.filter(c=>c.tipo==="despesa")[0];
+        var lanc = (await API.inserir("fin_lancamentos", {
+          tipo:"despesa", forma:"conta", descricao:"Pagamento de fatura · "+((cartao(f.cartao_id)||{}).nome||""),
+          valor:valor, data:data, categoria_id: cat?cat.id:null, conta_id:contaId,
+          status:"pago", pago_em:data, pagamento_fatura_id:f.id, exemplo: !!f.exemplo
+        }))[0];
+        D.lancamentos.push(lanc);
+        await API.atualizar("fin_faturas", f.id, {
+          status:"paga", pago_em:data, conta_pagamento_id:contaId, valor_pago:valor });
+        Object.assign(f, { status:"paga", pago_em:data, conta_pagamento_id:contaId, valor_pago:valor });
+      }, "Registrar pagamento");
+  },
+
+  trocarCartaoFatura: function(){},
+  trocarCompetencia: function(){},
+
+  novaCategoria: function(b){
+    var tipo=b.dataset.tipo;
+    abrirDialogo("Nova categoria de "+tipo,
+      '<div class="campo"><label class="rotulo">Nome</label><input id="gNome" placeholder="ex.: Moradia"></div>',
+      async function(d){
+        var nome=$("#gNome",d).value.trim();
+        if(!nome) falha("Informe o nome da categoria.");
+        var nova = (await API.inserir("fin_categorias", { nome:nome, tipo:tipo }))[0];
+        D.categorias.push(nova);
+      });
+  },
+
+  novaSub: function(b){
+    var catId=b.dataset.id;
+    abrirDialogo("Nova subcategoria de "+esc((categoria(catId)||{}).nome||""),
+      '<div class="campo"><label class="rotulo">Nome</label><input id="sNome" placeholder="ex.: Aluguel"></div>',
+      async function(d){
+        var nome=$("#sNome",d).value.trim();
+        if(!nome) falha("Informe o nome da subcategoria.");
+        var nova = (await API.inserir("fin_subcategorias", { categoria_id:catId, nome:nome }))[0];
+        D.subcategorias.push(nova);
+      });
+  },
+
+  apagarCategoria: async function(b){
+    var id=b.dataset.id;
+    var usos = D.lancamentos.filter(l=>l.categoria_id===id).length;
+    if(usos) return alert("Esta categoria tem "+usos+" lançamento(s) e não pode ser excluída.");
+    if(!confirm("Excluir a categoria e suas subcategorias?")) return;
+    await API.apagar("fin_categorias", id);
+    D.categorias = D.categorias.filter(c=>c.id!==id);
+    D.subcategorias = D.subcategorias.filter(s=>s.categoria_id!==id);
+    render();
+  },
+
+  carregarExemplo: async function(){
+    if(!confirm("Carregar dados de exemplo? Eles ficam marcados e podem ser apagados depois.")) return;
+    await semearExemplo();
+    await carregar();
+    render();
+  },
+
+  limparExemplo: async function(){
+    if(!confirm("Apagar TODOS os dados marcados como exemplo? Seus dados reais não são tocados.")) return;
+    for(var i=TABELAS.length-1;i>=0;i--) await API.apagarExemplos(TABELAS[i]);
+    await carregar();
+    render();
+  }
+};
+
+/* change em selects/inputs de filtro, mês e seletores */
+document.addEventListener("change", function(ev){
+  var el = ev.target.closest("[data-act]");
+  if(!el) return;
+  var act = el.dataset.act;
+  if(act==="filtro"){ estado.filtros[el.dataset.k] = el.value; render(); }
+  else if(act==="mudarMes"){ estado.mes = el.value || ym(hoje()); render(); }
+  else if(act==="trocarCartaoFatura"){ estado.cartaoFatura=el.value; estado.competenciaFatura=null; render(); }
+  else if(act==="trocarCompetencia"){ estado.competenciaFatura=el.value; render(); }
+});
+
+/* ===================================================================
+   Dados de exemplo
+=================================================================== */
+async function semearExemplo(){
+  var contas = await API.inserir("fin_contas", [
+    { nome:"Conta corrente", instituicao:"Banco do Brasil", tipo:"corrente", saldo_inicial:4200, ativo:true, exemplo:true },
+    { nome:"Poupança", instituicao:"Caixa", tipo:"poupanca", saldo_inicial:12000, ativo:true, exemplo:true }
+  ]);
+  var cartoes = await API.inserir("fin_cartoes", [
+    { nome:"Cartão principal", emissor:"Nubank", limite_total:8000, dia_fechamento:20, dia_vencimento:28, ativo:true, exemplo:true }
+  ]);
+  var catsR = await API.inserir("fin_categorias", [
+    { nome:"Salário", tipo:"receita", exemplo:true },
+    { nome:"Freelance", tipo:"receita", exemplo:true }
+  ]);
+  var catsD = await API.inserir("fin_categorias", [
+    { nome:"Moradia", tipo:"despesa", exemplo:true },
+    { nome:"Alimentação", tipo:"despesa", exemplo:true },
+    { nome:"Transporte", tipo:"despesa", exemplo:true },
+    { nome:"Fatura de cartão", tipo:"despesa", exemplo:true }
+  ]);
+  var subs = await API.inserir("fin_subcategorias", [
+    { categoria_id:catsD[0].id, nome:"Aluguel", exemplo:true },
+    { categoria_id:catsD[0].id, nome:"Energia", exemplo:true },
+    { categoria_id:catsD[1].id, nome:"Supermercado", exemplo:true },
+    { categoria_id:catsD[1].id, nome:"Restaurante", exemplo:true }
+  ]);
+
+  D.contas = D.contas.concat(contas); D.cartoes = D.cartoes.concat(cartoes);
+  D.categorias = D.categorias.concat(catsR, catsD); D.subcategorias = D.subcategorias.concat(subs);
+
+  var hj = hoje(), mes = ym(hj);
+  var lancs = [
+    { tipo:"receita", forma:"conta", descricao:"Salário", valor:7800, data:mes+"-05",
+      categoria_id:catsR[0].id, conta_id:contas[0].id, status:"pago", pago_em:mes+"-05", exemplo:true },
+    { tipo:"despesa", forma:"conta", descricao:"Aluguel", valor:2100, data:mes+"-10",
+      categoria_id:catsD[0].id, subcategoria_id:subs[0].id, conta_id:contas[0].id, status:"pago", pago_em:mes+"-10", exemplo:true },
+    { tipo:"despesa", forma:"conta", descricao:"Conta de energia", valor:280.45, data:mes+"-18",
+      categoria_id:catsD[0].id, subcategoria_id:subs[1].id, conta_id:contas[0].id, status:"pendente", exemplo:true }
+  ];
+  var ins = await API.inserir("fin_lancamentos", lancs);
+  D.lancamentos = D.lancamentos.concat(ins);
+
+  // compra parcelada no cartão
+  var c = cartoes[0];
+  var ciclo = faturaDaCompra(c, mes+"-15");
+  var valores = dividirParcelas(1800, 3), compraId = uid(), linhas = [];
+  for(var i=0;i<3;i++){
+    var cic = i===0 ? ciclo : faturaSeguinte(c, ciclo.competencia, i);
+    var fid = await garantirFatura(c, cic);
+    linhas.push({ tipo:"despesa", forma:"cartao", descricao:"Notebook", valor:valores[i],
+      data: i===0 ? mes+"-15" : cic.fechamento, categoria_id:catsD[2].id, cartao_id:c.id,
+      fatura_id:fid, status:"pendente", compra_id:compraId, parcela_num:i+1, parcela_total:3, exemplo:true });
+  }
+  // compra à vista no cartão
+  var fidAv = await garantirFatura(c, ciclo);
+  linhas.push({ tipo:"despesa", forma:"cartao", descricao:"Supermercado", valor:430.90, data:mes+"-12",
+    categoria_id:catsD[1].id, subcategoria_id:subs[2].id, cartao_id:c.id, fatura_id:fidAv,
+    status:"pendente", parcela_num:1, parcela_total:1, exemplo:true });
+  var ins2 = await API.inserir("fin_lancamentos", linhas);
+  D.lancamentos = D.lancamentos.concat(ins2);
+
+  // recorrência mensal em conta
+  var rec = (await API.inserir("fin_recorrencias", {
+    tipo:"despesa", forma:"conta", descricao:"Internet", valor:129.90,
+    categoria_id:catsD[0].id, conta_id:contas[0].id, dia:15,
+    inicio: mes+"-01", fim:null, ativo:true, exemplo:true }))[0];
+  D.recorrencias.push(rec);
+}
+
+/* ===================================================================
+   Início
+=================================================================== */
+function telaAviso(titulo, texto, extra){
+  $("#raiz").innerHTML = '<div style="max-width:560px;margin:10vh auto;padding:0 20px">'+
+    '<div class="card"><div class="card-h"><h3>'+esc(titulo)+'</h3></div>'+
+    '<div class="card-b"><p style="margin:0 0 12px">'+texto+'</p>'+(extra||"")+'</div></div></div>';
+}
+
+async function iniciar(){
+  if(USAR_MOCK){
+    API = apiMock();
+  } else {
+    if(!(window.supabase && window.supabase.createClient))
+      return telaAviso("Biblioteca não carregou",
+        "Não consegui carregar o cliente do banco. Recarregue a página.");
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    var r = await sb.auth.getSession();
+    sessao = r && r.data ? r.data.session : null;
+    if(!sessao)
+      return telaAviso("Entre na sua conta",
+        "Este app usa a mesma conta do hub. Abra o <b>RLhub</b> e entre — depois volte aqui.",
+        '<a class="btn primary" href="/#/financeiro" style="display:inline-block;line-height:32px;text-decoration:none">Ir para o RLhub</a>');
+    API = apiSupabase(sb);
+  }
+
+  try{
+    await carregar();
+  }catch(e){
+    return telaAviso("Banco ainda não preparado",
+      "Não consegui ler as tabelas <code>fin_*</code>. Rode o arquivo <code>schema.sql</code> "+
+      "no SQL Editor do Supabase e recarregue.<br><br><span class='legenda'>"+esc(e.message||e)+"</span>");
+  }
+
+  render();
+
+}
+
+iniciar();
+</script>
+</body>
+</html>
