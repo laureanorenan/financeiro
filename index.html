@@ -93,6 +93,11 @@ tbody tr:last-child td{border-bottom:0}
 tfoot td{font-weight:500;background:var(--surface-100);color:var(--ink-900)}
 .r{text-align:right}
 .tabela-rolagem{overflow-x:auto}
+/* cabecalho de grupo, quando a lista esta agrupada por cartao/conta */
+tr.grupo td{background:var(--surface-100);padding:var(--space-2) var(--space-4);
+  border-bottom:1px solid var(--border-strong)}
+tr.grupo .g-nome{display:flex;align-items:center;gap:8px;color:var(--ink-900);font-weight:500}
+tr.grupo .g-cont{color:var(--ink-500);font-size:11px;font-weight:400}
 .forte{color:var(--ink-900);font-weight:500}
 
 .selo{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:500;
@@ -323,7 +328,8 @@ var estado = {
   mes: ym(hoje()),
   // começa no mês corrente para a lista não abrir com um ano de parcelas futuras
   filtros: { de: ym(hoje())+"-01", ate: fimDoMes(ym(hoje())), status:"", categoria:"", forma:"", tipo:"" },
-  cartaoFatura: null, competenciaFatura: null, contaExtrato: null
+  cartaoFatura: null, competenciaFatura: null, contaExtrato: null,
+  agrupar: (function(){ try{ return localStorage.getItem("fin.agrupar")==="1"; }catch(e){ return false; } })()
 };
 function fimDoMes(m){
   var a=+m.slice(0,4), s=+m.slice(5,7);
@@ -849,8 +855,12 @@ function vLancamentos(){
   return '<div class="topo"><div><h1>Lançamentos</h1>'+
     '<p class="legenda">'+lista.length+' lançamento(s) · receitas '+BRL(rec)+' · despesas '+BRL(des)+
       (nInfo ? ' · '+nInfo+' informativo(s) fora da conta' : "")+'</p></div>'+
-    '<div class="acoes"><button class="btn" data-act="novaRecorrencia">+ Recorrente</button>'+
-    '<button class="btn primary" data-act="novoLanc">+ Lançamento</button></div></div>'+
+    '<div class="acoes">'+
+      '<button class="btn'+(estado.agrupar?" primary":"")+'" data-act="agrupar">'+
+        (estado.agrupar ? "Lista corrida" : "Agrupar por cartão")+'</button>'+
+      '<button class="btn" data-act="novaRecorrencia">+ Recorrente</button>'+
+      '<button class="btn primary" data-act="novoLanc">+ Lançamento</button>'+
+    '</div></div>'+
 
     '<div class="card"><div class="card-b"><div class="filtros">'+
       campoFiltro("de","De","date",f.de)+
@@ -867,17 +877,51 @@ function vLancamentos(){
       '<div class="tabela-rolagem"><table><thead><tr>'+
         '<th>Data</th><th>Descrição</th><th>Categoria</th><th>Origem</th>'+
         '<th class="r">Valor</th><th>Situação</th><th></th></tr></thead><tbody>'+
-        lista.map(linhaLanc).join("")+
+        (estado.agrupar ? corpoAgrupado(lista) : lista.map(linhaLanc).join(""))+
       '</tbody></table></div>'
       : '<div class="vazio"><h4>Nenhum lançamento</h4><p>Ajuste os filtros ou registre o primeiro.</p></div>')+
     '</div>';
 }
 
+/* Lista em blocos: um por cartão e um por conta, cada um com o total do período.
+   A ordem segue o cadastro — cartões primeiro, contas depois. */
+function chaveOrigem(l){
+  return l.forma==="cartao" ? "k:"+l.cartao_id : "c:"+l.conta_id;
+}
+function corpoAgrupado(lista){
+  var ordem = D.cartoes.map(function(c){ return "k:"+c.id; })
+              .concat(D.contas.map(function(c){ return "c:"+c.id; }));
+  var grupos = {};
+  lista.forEach(function(l){
+    var k = chaveOrigem(l);
+    (grupos[k] = grupos[k] || []).push(l);
+  });
+  // origens que não estão mais cadastradas ainda assim aparecem, no fim
+  Object.keys(grupos).forEach(function(k){ if(ordem.indexOf(k) < 0) ordem.push(k); });
+
+  return ordem.filter(function(k){ return grupos[k] && grupos[k].length; }).map(function(k){
+    var itens = grupos[k];
+    var ehCartao = k.slice(0,2)==="k:", id = k.slice(2);
+    var reg = (ehCartao ? cartao(id) : conta(id)) || {};
+    var nome = reg.nome || (ehCartao ? "cartão removido" : "conta removida");
+    var liquido = valem(itens).reduce(function(a,l){
+      return a + (l.tipo==="receita" ? 1 : -1) * Number(l.valor); }, 0);
+    return '<tr class="grupo"><td colspan="4"><div class="g-nome">'+chipIcone(reg, 14)+
+        '<span class="g-txt">'+esc(nome)+'</span>'+
+        '<span class="g-cont">'+itens.length+' lançamento(s)</span></div></td>'+
+      '<td class="r num forte '+(liquido<0?"neg":"pos")+'">'+
+        (liquido<0?"−":"+")+BRL(Math.abs(liquido))+'</td>'+
+      '<td colspan="2"></td></tr>'+
+      itens.map(linhaLanc).join("");
+  }).join("");
+}
+
 function linhaLanc(l){
   var st = statusLanc(l);
-  var origem = l.forma==="cartao"
-    ? ((cartao(l.cartao_id)||{}).nome||"cartão") + (l.parcela_total>1 ? " · "+l.parcela_num+"/"+l.parcela_total : "")
-    : ((conta(l.conta_id)||{}).nome||"conta");
+  var serie = l.parcela_total > 1 ? " · "+l.parcela_num+"/"+l.parcela_total : "";
+  var origem = (l.forma==="cartao"
+    ? ((cartao(l.cartao_id)||{}).nome||"cartão")
+    : ((conta(l.conta_id)||{}).nome||"conta")) + serie;
   // compra adiada: avisa em qual fatura ela caiu
   var adiada = "";
   if(l.forma==="cartao" && l.fatura_id){
@@ -1353,7 +1397,17 @@ function corpoLancamento(l){
       '<div class="campo"><label class="rotulo">Categoria</label><select id="fCat">'+opcoesCategoria(tipo, l.categoria_id)+'</select></div>'+
       '<div class="campo"><label class="rotulo">Subcategoria</label><select id="fSub">'+opcoesSub(l.categoria_id, l.subcategoria_id)+'</select></div>'+
     '</div>'+
-    '<div class="campo" id="blocoConta"><label class="rotulo">Conta bancária</label><select id="fConta">'+opcoesConta(l.conta_id)+'</select></div>'+
+    '<div id="blocoConta">'+
+      '<div class="campo"><label class="rotulo">Conta bancária</label><select id="fConta">'+opcoesConta(l.conta_id)+'</select></div>'+
+      '<div class="linha l2" id="linhaVezes">'+
+        '<div class="campo"><label class="rotulo">Vezes</label>'+
+          '<input id="fVezes" type="number" min="1" max="60" value="1"></div>'+
+        '<div class="campo"><label class="rotulo">O valor acima é</label><select id="fModo">'+
+          '<option value="repetir">de cada cobrança</option>'+
+          '<option value="dividir">o total, a dividir</option></select></div>'+
+      '</div>'+
+      '<div class="legenda" id="infoVezes" style="margin:-8px 0 16px">Uma cobrança só.</div>'+
+    '</div>'+
     '<div id="blocoCartao" style="display:none">'+
       '<div class="linha l2">'+
         '<div class="campo"><label class="rotulo">Cartão</label><select id="fCartao">'+opcoesCartao(l.cartao_id)+'</select></div>'+
@@ -1413,6 +1467,19 @@ function ligarFormLanc(d, l){
       ? "Disponível "+BRL(limiteDisponivel(c.id))+" · fecha dia "+c.dia_fechamento
       : "—";
     montarFaturas(c);
+    mostrarVezes();
+  }
+
+  /* explica, em uma linha, o que o "Vezes" vai gerar */
+  function mostrarVezes(){
+    var aviso = $("#infoVezes",d);
+    if(!aviso || !$("#fVezes",d)) return;
+    var n = vezesDoForm(d), valor = Number($("#fValor",d).value)||0;
+    var data = $("#fData",d).value || hoje();
+    if(n <= 1 || !valor){ aviso.textContent = "Uma cobrança só."; return; }
+    var cada = $("#fModo",d).value==="dividir" ? dividirParcelas(valor, n)[0] : valor;
+    aviso.textContent = n+" cobranças de "+BRL(cada)+" · de "+dBR(data)+
+      " a "+dBR(addMeses(data, n-1))+" · total "+BRL($("#fModo",d).value==="dividir" ? valor : cada*n);
   }
 
   /* lista as próximas faturas do cartão; a primeira é a automática */
@@ -1439,9 +1506,22 @@ function ligarFormLanc(d, l){
   }
 
   ["#fTipo","#fForma","#fCartao"].forEach(function(s){ $(s,d).addEventListener("change", sync); });
-  $("#fData",d).addEventListener("change", function(){ montarFaturas(cartao($("#fCartao",d).value)); });
+  ["#fVezes","#fModo","#fValor"].forEach(function(s){
+    if($(s,d)) $(s,d).addEventListener("input", mostrarVezes);
+  });
+  $("#fData",d).addEventListener("change", function(){
+    montarFaturas(cartao($("#fCartao",d).value));
+    mostrarVezes();
+  });
   $("#fCat",d).addEventListener("change", function(){ $("#fSub",d).innerHTML = opcoesSub($("#fCat",d).value); });
   sync();
+}
+
+/* Quantas cobranças a despesa de conta vai gerar (1 = a de sempre) */
+function vezesDoForm(d){
+  var campo = $("#fVezes",d), linha = $("#linhaVezes",d);
+  if(!campo || !linha || linha.style.display === "none") return 1;
+  return Math.max(1, Math.min(60, parseInt(campo.value,10) || 1));
 }
 
 /* Qual ciclo o usuário escolheu no formulário */
@@ -1475,6 +1555,12 @@ var ACOES = {
     render();
   },
 
+  agrupar: function(){
+    estado.agrupar = !estado.agrupar;
+    try{ localStorage.setItem("fin.agrupar", estado.agrupar ? "1" : "0"); }catch(e){}
+    render();
+  },
+
   limparFiltros: function(){
     estado.filtros = { de:"", ate:"", status:"", categoria:"", forma:"", tipo:"" };
     render();
@@ -1496,14 +1582,42 @@ var ACOES = {
       if(forma==="conta"){
         var contaId=$("#fConta",d).value;
         if(!contaId) falha("Escolha a conta bancária.");
-        var novo = (await API.inserir("fin_lancamentos", {
-          tipo:tipo, forma:"conta", descricao:desc, valor:valor, data:data,
-          categoria_id:cat, subcategoria_id:sub||null, conta_id:contaId,
-          status:$("#fStatus",d).value, pago_em: $("#fStatus",d).value==="pago"?data:null,
-          observacao:obs||null, informativo:info
-        }))[0];
-        D.lancamentos.push(novo);
-        await enviarAnexos(novo, $("#fArq",d).files);
+        var st = $("#fStatus",d).value;
+        var vezes = vezesDoForm(d);
+
+        if(vezes === 1){
+          var novo = (await API.inserir("fin_lancamentos", {
+            tipo:tipo, forma:"conta", descricao:desc, valor:valor, data:data,
+            categoria_id:cat, subcategoria_id:sub||null, conta_id:contaId,
+            status:st, pago_em: st==="pago"?data:null,
+            observacao:obs||null, informativo:info
+          }))[0];
+          D.lancamentos.push(novo);
+          await enviarAnexos(novo, $("#fArq",d).files);
+          return;
+        }
+
+        // várias cobranças: uma por mês, a partir da data informada
+        var dividir = $("#fModo",d).value === "dividir";
+        var vals = dividir ? dividirParcelas(valor, vezes) : null;
+        var serieId = uid(), linhasC = [];
+        for(var j=0;j<vezes;j++){
+          var dataJ = j===0 ? data : addMeses(data, j);
+          linhasC.push({
+            tipo:tipo, forma:"conta", descricao:desc,
+            valor: dividir ? vals[j] : valor, data:dataJ,
+            categoria_id:cat, subcategoria_id:sub||null, conta_id:contaId,
+            // só a primeira pode já estar paga; as futuras nascem pendentes
+            status: j===0 ? st : "pendente",
+            pago_em: (j===0 && st==="pago") ? data : null,
+            compra_id:serieId, parcela_num:j+1, parcela_total:vezes,
+            observacao:obs||null, informativo:info
+          });
+        }
+        var insC = await API.inserir("fin_lancamentos", linhasC);
+        D.lancamentos = D.lancamentos.concat(insC);
+        // o anexo fica na primeira cobrança e vale para a série inteira
+        await enviarAnexos(insC[0], $("#fArq",d).files);
         return;
       }
 
@@ -1548,6 +1662,9 @@ var ACOES = {
       .replace('<div class="campo"><label class="rotulo">Anexos</label>','<div class="campo" style="display:none"><label class="rotulo">Anexos</label>')
       // cada ocorrência da recorrência cai na fatura do próprio mês
       .replace('<div class="campo" id="blocoFatura">','<div class="campo" id="blocoFatura" style="display:none">')
+      // a recorrência já se repete sozinha, todo mês
+      .replace('<div class="linha l2" id="linhaVezes">','<div class="linha l2" id="linhaVezes" style="display:none">')
+      .replace('<div class="legenda" id="infoVezes"','<div class="legenda" id="infoVezes" hidden')
       + '<div class="linha l3">'+
         '<div class="campo"><label class="rotulo">Dia do mês</label><input id="fDia" type="number" min="1" max="31" value="'+new Date().getDate()+'"></div>'+
         '<div class="campo"><label class="rotulo">Início</label><input id="fInicio" type="date" value="'+hoje()+'"></div>'+
@@ -1638,6 +1755,11 @@ var ACOES = {
     // a forma não muda numa edição: trocar conta↔cartão é excluir e lançar de novo
     $("#fForma",d).disabled = true;
     $("#blocoParcelas",d).style.display = "none";
+    // numa edição mexe-se numa cobrança só; para mudar a série, exclua e lance de novo
+    $("#linhaVezes",d).style.display = "none";
+    $("#infoVezes",d).textContent = l.forma==="conta" && l.parcela_total > 1
+      ? "Cobrança "+l.parcela_num+"/"+l.parcela_total+" — as outras da série não mudam."
+      : "";
     if(parcelada){
       $("#fData",d).parentNode.style.display = "none";
       $("#fCartao",d).parentNode.style.display = "none";
@@ -1699,9 +1821,11 @@ var ACOES = {
     var l = D.lancamentos.filter(x=>x.id===b.dataset.id)[0];
     if(!l) return;
     var meus = D.anexos.filter(function(a){ return a.lancamento_id===l.id; });
-    var msg = l.compra_id
-      ? "Excluir esta parcela? As outras parcelas da mesma compra continuam."
-      : "Excluir este lançamento?";
+    var msg = !l.compra_id ? "Excluir este lançamento?"
+      : l.forma==="cartao"
+        ? "Excluir esta parcela? As outras parcelas da mesma compra continuam."
+        : "Excluir esta cobrança ("+l.parcela_num+"/"+l.parcela_total+
+          ")? As outras cobranças da mesma série continuam.";
     if(meus.length) msg += "\n\n" + meus.length + " anexo(s) vão junto.";
     if(!confirm(msg)) return;
     for(var i=0;i<meus.length;i++){
