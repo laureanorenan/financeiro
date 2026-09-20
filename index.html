@@ -355,6 +355,15 @@ function faturaDaCompra(c, data){
   return { fechamento: fechamento, vencimento: dv, competencia: ym(dv) };
 }
 
+/* Os próximos ciclos do cartão a partir da compra: o automático e os seguintes,
+   para quem combinou com a loja de cair só daqui a dois, três meses. */
+function ciclosDoCartao(c, data, quantos){
+  var base = faturaDaCompra(c, data);
+  var lista = [base];
+  for(var i=1; i<(quantos||12); i++) lista.push(faturaSeguinte(c, base.competencia, i));
+  return lista;
+}
+
 /* Fatura seguinte (usada nas parcelas) */
 function faturaSeguinte(c, competencia, n){
   var base = competencia+"-01";
@@ -869,6 +878,13 @@ function linhaLanc(l){
   var origem = l.forma==="cartao"
     ? ((cartao(l.cartao_id)||{}).nome||"cartão") + (l.parcela_total>1 ? " · "+l.parcela_num+"/"+l.parcela_total : "")
     : ((conta(l.conta_id)||{}).nome||"conta");
+  // compra adiada: avisa em qual fatura ela caiu
+  var adiada = "";
+  if(l.forma==="cartao" && l.fatura_id){
+    var kk = cartao(l.cartao_id), ff = fatura(l.fatura_id);
+    if(kk && ff && ff.competencia !== faturaDaCompra(kk, l.data).competencia)
+      adiada = '<div class="legenda">fatura de '+esc(mesBR(ff.competencia))+'</div>';
+  }
   var nAnexos = anexosDe(l).length;
   return '<tr><td class="num">'+dBR(l.data)+'</td>'+
     '<td><span class="forte">'+esc(l.descricao)+'</span>'+
@@ -879,7 +895,7 @@ function linhaLanc(l){
       '<span>'+esc(nomeCat(l))+'</span></div></td>'+
     '<td><div class="com-ico">'+
       chipIcone((l.forma==="cartao" ? cartao(l.cartao_id) : conta(l.conta_id)) || {}, 14)+
-      '<span>'+esc(origem)+'</span></div></td>'+
+      '<span>'+esc(origem)+adiada+'</span></div></td>'+
     '<td class="r num '+(ehInfo(l) ? "valor-info" : (l.tipo==="receita"?"pos":""))+'">'+
       (l.tipo==="receita"?"+":"−")+BRL(l.valor)+'</td>'+
     '<td>'+selo(st)+'</td>'+
@@ -1339,7 +1355,11 @@ function corpoLancamento(l){
     '</div>'+
     '<div class="campo" id="blocoConta"><label class="rotulo">Conta bancária</label><select id="fConta">'+opcoesConta(l.conta_id)+'</select></div>'+
     '<div id="blocoCartao" style="display:none">'+
-      '<div class="campo"><label class="rotulo">Cartão</label><select id="fCartao">'+opcoesCartao(l.cartao_id)+'</select></div>'+
+      '<div class="linha l2">'+
+        '<div class="campo"><label class="rotulo">Cartão</label><select id="fCartao">'+opcoesCartao(l.cartao_id)+'</select></div>'+
+        '<div class="campo" id="blocoFatura"><label class="rotulo">Cobrar na fatura de</label>'+
+          '<select id="fFatura"></select></div>'+
+      '</div>'+
       '<div class="linha l2">'+
         '<div class="campo" id="blocoParcelas"><label class="rotulo">Parcelas</label><input id="fParcelas" type="number" min="1" max="60" value="1"></div>'+
         '<div class="campo"><label class="rotulo">&nbsp;</label><div class="legenda" id="infoCartao">—</div></div>'+
@@ -1392,10 +1412,48 @@ function ligarFormLanc(d, l){
     $("#infoCartao",d).textContent = c
       ? "Disponível "+BRL(limiteDisponivel(c.id))+" · fecha dia "+c.dia_fechamento
       : "—";
+    montarFaturas(c);
   }
+
+  /* lista as próximas faturas do cartão; a primeira é a automática */
+  var faturaInicial = (l && l.fatura_id && fatura(l.fatura_id)) ? fatura(l.fatura_id).competencia : "";
+  function montarFaturas(c){
+    var campo = $("#fFatura",d);
+    if(!campo) return;
+    if(!c){ campo.innerHTML = '<option value="0">—</option>'; return; }
+    var data = $("#fData",d).value || hoje();
+    var escolhido = faturaInicial || campo.value || "0";
+    var ciclos = ciclosDoCartao(c, data, 13);
+    campo.innerHTML = ciclos.map(function(ci, i){
+      var rot = mesBR(ci.competencia) + " · vence " + dBR(ci.vencimento) + (i===0 ? " (automático)" : "");
+      var marcado = faturaInicial ? (ci.competencia===faturaInicial) : (String(i)===String(escolhido));
+      return '<option value="'+i+'"'+(marcado?" selected":"")+'>'+esc(rot)+'</option>';
+    }).join("");
+    // fatura atual fora da janela (data editada, por exemplo): entra na lista
+    if(faturaInicial && !ciclos.some(function(ci){ return ci.competencia===faturaInicial; })){
+      var f = fatura(l.fatura_id);
+      campo.insertAdjacentHTML("afterbegin",
+        '<option value="manter" selected>'+esc(mesBR(f.competencia)+" · vence "+dBR(f.vencimento)+" (atual)")+'</option>');
+    }
+    faturaInicial = "";   // só na primeira montagem
+  }
+
   ["#fTipo","#fForma","#fCartao"].forEach(function(s){ $(s,d).addEventListener("change", sync); });
+  $("#fData",d).addEventListener("change", function(){ montarFaturas(cartao($("#fCartao",d).value)); });
   $("#fCat",d).addEventListener("change", function(){ $("#fSub",d).innerHTML = opcoesSub($("#fCat",d).value); });
   sync();
+}
+
+/* Qual ciclo o usuário escolheu no formulário */
+function cicloEscolhido(d, c, data, lanc){
+  var v = $("#fFatura",d) ? $("#fFatura",d).value : "0";
+  if(v === "manter" && lanc && lanc.fatura_id){
+    var f = fatura(lanc.fatura_id);
+    return { competencia:f.competencia, fechamento:f.fechamento, vencimento:f.vencimento, manter:true };
+  }
+  var n = Math.max(0, Math.min(12, parseInt(v,10) || 0));
+  var base = faturaDaCompra(c, data);
+  return n === 0 ? base : faturaSeguinte(c, base.competencia, n);
 }
 
 /* ===================================================================
@@ -1461,7 +1519,7 @@ var ACOES = {
       }
       var valores = dividirParcelas(valor, n);
       var compraId = uid();
-      var ciclo = faturaDaCompra(c, data);
+      var ciclo = cicloEscolhido(d, c, data);
       var linhas = [];
       for(var i=0;i<n;i++){
         var cic = i===0 ? ciclo : faturaSeguinte(c, ciclo.competencia, i);
@@ -1488,6 +1546,8 @@ var ACOES = {
     var corpo = corpoLancamento()
       .replace('<div class="campo"><label class="rotulo">Situação</label>','<div class="campo" style="display:none"><label class="rotulo">Situação</label>')
       .replace('<div class="campo"><label class="rotulo">Anexos</label>','<div class="campo" style="display:none"><label class="rotulo">Anexos</label>')
+      // cada ocorrência da recorrência cai na fatura do próprio mês
+      .replace('<div class="campo" id="blocoFatura">','<div class="campo" id="blocoFatura" style="display:none">')
       + '<div class="linha l3">'+
         '<div class="campo"><label class="rotulo">Dia do mês</label><input id="fDia" type="number" min="1" max="31" value="'+new Date().getDate()+'"></div>'+
         '<div class="campo"><label class="rotulo">Início</label><input id="fInicio" type="date" value="'+hoje()+'"></div>'+
@@ -1562,9 +1622,8 @@ var ACOES = {
         var c = cartao(cartaoId);
         campos.data = data;
         campos.cartao_id = cartaoId;
-        if(cartaoId !== l.cartao_id || data !== String(l.data).slice(0,10)){
-          campos.fatura_id = await garantirFatura(c, faturaDaCompra(c, data));
-        }
+        var ciclo = cicloEscolhido(d, c, data, l);
+        if(!ciclo.manter) campos.fatura_id = await garantirFatura(c, ciclo);
         var fAtual = campos.fatura_id ? fatura(campos.fatura_id) : fatura(l.fatura_id);
         if(fAtual && fAtual.status==="paga")
           falha("Esta compra cairia numa fatura já paga. Escolha outra data.");
@@ -1582,6 +1641,7 @@ var ACOES = {
     if(parcelada){
       $("#fData",d).parentNode.style.display = "none";
       $("#fCartao",d).parentNode.style.display = "none";
+      $("#blocoFatura",d).style.display = "none";
       $("#infoCartao",d).textContent = "Parcela "+l.parcela_num+"/"+l.parcela_total+
         " — data e fatura seguem o ciclo da compra";
     }
