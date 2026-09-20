@@ -704,21 +704,20 @@ function render(){
   barraExemplo();
 }
 
-/* Barra flutuante: carregar / apagar dados de exemplo.
-   Refeita a cada render para refletir o estado atual. */
+/* Barra flutuante: só aparece se ainda houver dados de exemplo guardados,
+   para dar como apagá-los. Carregar exemplo não é oferecido na tela. */
 function barraExemplo(){
   var tem = ["contas","cartoes","categorias","lancamentos"].some(function(k){
     return D[k].some(function(r){ return r.exemplo; }); });
   var bar = document.getElementById("barraExemplo");
+  if(!tem){ if(bar) bar.remove(); return; }
   if(!bar){
     bar = document.createElement("div");
     bar.id = "barraExemplo";
     bar.style.cssText = "position:fixed;right:16px;bottom:16px;z-index:50;display:flex;gap:8px";
     document.body.appendChild(bar);
   }
-  var html = tem
-    ? '<button class="btn perigo" data-act="limparExemplo">Apagar dados de exemplo</button>'
-    : '<button class="btn" data-act="carregarExemplo">Carregar dados de exemplo</button>';
+  var html = '<button class="btn perigo" data-act="limparExemplo">Apagar dados de exemplo</button>';
   if(bar.innerHTML !== html) bar.innerHTML = html;
 }
 
