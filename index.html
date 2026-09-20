@@ -106,6 +106,15 @@ tfoot td{font-weight:500;background:var(--surface-100);color:var(--ink-900)}
   border:1px solid var(--border-subtle);border-radius:var(--raio-2);background:var(--surface-100);cursor:pointer}
 .caixa input{margin-top:2px;flex:none}
 .caixa .legenda{line-height:1.4}
+ul.anexos{list-style:none;margin:0 0 8px;padding:0;display:flex;flex-direction:column;gap:6px}
+ul.anexos li{display:flex;align-items:center;gap:8px;padding:6px 10px;
+  border:1px solid var(--border-subtle);border-radius:var(--raio-2);background:var(--surface-100)}
+ul.anexos .nome{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+ul.anexos .clipe{flex:none;opacity:.7}
+ul.anexos .acoes{flex:none;display:flex;gap:6px}
+.clipe-lista{margin-left:6px;font-size:12px;white-space:nowrap;cursor:pointer;
+  background:none;border:0;padding:0;color:var(--chart-1);font-family:inherit}
+.clipe-lista:hover{text-decoration:underline}
 .valor-info{opacity:.55;text-decoration:line-through}
 .pos{color:var(--positive)} .neg{color:var(--negative)} .cau{color:var(--caution)}
 
@@ -115,6 +124,11 @@ tfoot td{font-weight:500;background:var(--surface-100);color:var(--ink-900)}
   border-radius:var(--radius-sm);background:var(--surface-000);padding:0 var(--space-3);font-size:14px}
 .campo textarea{height:62px;padding:var(--space-2) var(--space-3);resize:vertical}
 .campo input:focus,.campo select:focus,.campo textarea:focus{outline:none;border-color:var(--focus);box-shadow:0 0 0 2px rgba(63,156,124,.2)}
+.campo input[type=file]{padding:6px 8px;height:auto;font-size:13px;cursor:pointer}
+.campo input[type=file]::file-selector-button{margin-right:10px;padding:5px 12px;cursor:pointer;
+  border:1px solid var(--border-strong);border-radius:var(--raio-1);background:var(--surface-100);
+  color:var(--ink-700);font:inherit;font-size:13px}
+.campo input[type=file]::file-selector-button:hover{background:var(--surface-200);color:var(--ink-900)}
 .linha{display:grid;gap:var(--space-3)}
 .l2{grid-template-columns:1fr 1fr} .l3{grid-template-columns:1fr 1fr 1fr}
 .filtros{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--space-3);align-items:end}
@@ -164,7 +178,9 @@ dialog::backdrop{background:rgba(0,38,63,.5)}
 var SUPABASE_URL = "https://inlkyyjqfrokohdgfswd.supabase.co";
 var SUPABASE_KEY = "sb_publishable_Jy_Htveu81VI0-WGwJlO_g_lieqPAZT";
 var TABELAS = ["fin_contas","fin_cartoes","fin_categorias","fin_subcategorias",
-               "fin_recorrencias","fin_faturas","fin_lancamentos"];
+               "fin_recorrencias","fin_faturas","fin_lancamentos","fin_anexos"];
+var BALDE = "fin-anexos";
+var MAX_ANEXO = 10 * 1024 * 1024;   // 10 MB por arquivo
 var USAR_MOCK = /(\?|&)mock=1/.test(location.search);
 
 /* ===================================================================
@@ -180,7 +196,9 @@ function uid(){ return (crypto.randomUUID ? crypto.randomUUID()
 
 var fBRL = new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"});
 var fNum = new Intl.NumberFormat("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
-function BRL(v){ return fBRL.format(Number(v)||0); }
+/* Modo discreto: esconde todo valor em dinheiro da tela */
+var OCULTO = (function(){ try{ return localStorage.getItem("fin.ocultar")==="1"; }catch(e){ return false; } })();
+function BRL(v){ return OCULTO ? "R$ ••••" : fBRL.format(Number(v)||0); }
 function N2(v){ return fNum.format(Number(v)||0); }
 function PCT(v){ return (Number(v)||0).toFixed(1).replace(".",",")+"%"; }
 
@@ -222,13 +240,27 @@ function apiSupabase(sb){
     },
     async atualizar(t, id, campos){ return checar(await sb.from(t).update(campos).eq("id",id).select()); },
     async apagar(t, id){ return checar(await sb.from(t).delete().eq("id",id)); },
-    async apagarExemplos(t){ return checar(await sb.from(t).delete().eq("exemplo",true)); }
+    async apagarExemplos(t){ return checar(await sb.from(t).delete().eq("exemplo",true)); },
+
+    /* arquivos: balde privado, uma pasta por usuário */
+    async enviarArquivo(caminho, arquivo){
+      var r = await sb.storage.from(BALDE).upload(caminho, arquivo, { upsert:false });
+      if(r.error) throw new Error(r.error.message||"não consegui enviar o arquivo");
+      return caminho;
+    },
+    async linkArquivo(caminho){
+      var r = await sb.storage.from(BALDE).createSignedUrl(caminho, 120);
+      if(r.error) throw new Error(r.error.message||"não consegui abrir o arquivo");
+      return r.data.signedUrl;
+    },
+    async apagarArquivo(caminho){ await sb.storage.from(BALDE).remove([caminho]); },
+    pasta(){ return (sessao && sessao.user ? sessao.user.id : "anon"); }
   };
 }
 
 function apiMock(){
   var CH = "fin.mock.v1";
-  var dados = {};
+  var dados = {}, arquivos = {};
   try { dados = JSON.parse(localStorage.getItem(CH)||"{}"); } catch(e){ dados = {}; }
   TABELAS.forEach(function(t){ if(!dados[t]) dados[t]=[]; });
   function salvar(){ try{ localStorage.setItem(CH, JSON.stringify(dados)); }catch(e){} }
@@ -247,7 +279,17 @@ function apiMock(){
       salvar(); return dados[t].filter(function(r){ return r.id===id; });
     },
     async apagar(t, id){ dados[t] = dados[t].filter(function(r){ return r.id!==id; }); salvar(); },
-    async apagarExemplos(t){ dados[t] = dados[t].filter(function(r){ return !r.exemplo; }); salvar(); }
+    async apagarExemplos(t){ dados[t] = dados[t].filter(function(r){ return !r.exemplo; }); salvar(); },
+
+    /* arquivos só na memória desta aba — o modo de teste não guarda nada */
+    async enviarArquivo(caminho, arquivo){ arquivos[caminho] = arquivo; return caminho; },
+    async linkArquivo(caminho){
+      var a = arquivos[caminho];
+      if(!a) throw new Error("arquivo só existe enquanto a aba fica aberta (modo de teste)");
+      return URL.createObjectURL(a);
+    },
+    async apagarArquivo(caminho){ delete arquivos[caminho]; },
+    pasta(){ return "teste"; }
   };
 }
 
@@ -255,7 +297,7 @@ function apiMock(){
    Estado
 =================================================================== */
 var API = null, sb = null, sessao = null;
-var D = { contas:[], cartoes:[], categorias:[], subcategorias:[], recorrencias:[], faturas:[], lancamentos:[] };
+var D = { contas:[], cartoes:[], categorias:[], subcategorias:[], recorrencias:[], faturas:[], lancamentos:[], anexos:[] };
 var estado = {
   view: "painel",
   mes: ym(hoje()),
@@ -317,6 +359,51 @@ function cartao(id){ return D.cartoes.filter(function(c){return c.id===id;})[0];
 function categoria(id){ return D.categorias.filter(function(c){return c.id===id;})[0]; }
 function subcategoria(id){ return D.subcategorias.filter(function(c){return c.id===id;})[0]; }
 function fatura(id){ return D.faturas.filter(function(f){return f.id===id;})[0]; }
+
+/* ---- anexos ----
+   Numa compra parcelada o arquivo vale para a compra toda: as parcelas
+   irmãs mostram o mesmo anexo. */
+function irmaosDe(l){
+  if(!l) return [];
+  if(l.compra_id) return D.lancamentos.filter(function(x){ return x.compra_id===l.compra_id; });
+  return [l];
+}
+function anexosDe(l){
+  var ids = irmaosDe(l).map(function(x){ return x.id; });
+  return D.anexos.filter(function(a){ return ids.indexOf(a.lancamento_id) >= 0; });
+}
+function tamanhoArquivo(b){
+  b = Number(b)||0;
+  if(b < 1024) return b+" B";
+  if(b < 1024*1024) return (b/1024).toFixed(0)+" KB";
+  return (b/1024/1024).toFixed(1).replace(".",",")+" MB";
+}
+function nomeSeguro(nome){
+  return String(nome||"arquivo").normalize("NFD").replace(/[̀-ͯ]/g,"")
+    .replace(/[^\w.\- ]+/g,"_").replace(/\s+/g,"_").slice(-80);
+}
+async function enviarAnexos(lanc, arquivos){
+  var novos = [];
+  for(var i=0;i<arquivos.length;i++){
+    var f = arquivos[i];
+    if(f.size > MAX_ANEXO)
+      falha('O arquivo "'+f.name+'" tem '+tamanhoArquivo(f.size)+'. O limite é 10 MB.');
+    var caminho = API.pasta()+"/"+lanc.id+"/"+uid()+"-"+nomeSeguro(f.name);
+    await API.enviarArquivo(caminho, f);
+    novos.push({ lancamento_id:lanc.id, nome:f.name, caminho:caminho,
+                 tipo:f.type||null, tamanho:f.size, exemplo:!!lanc.exemplo });
+  }
+  if(novos.length){
+    var ins = await API.inserir("fin_anexos", novos);
+    D.anexos = D.anexos.concat(ins);
+  }
+  return novos.length;
+}
+async function apagarAnexo(a){
+  try{ await API.apagarArquivo(a.caminho); }catch(e){}
+  await API.apagar("fin_anexos", a.id);
+  D.anexos = D.anexos.filter(function(x){ return x.id!==a.id; });
+}
 
 function nomeCat(l){
   var c = categoria(l.categoria_id), s = subcategoria(l.subcategoria_id);
@@ -446,10 +533,10 @@ async function gerarRecorrencias(){
 =================================================================== */
 async function carregar(){
   var nomes = ["fin_contas","fin_cartoes","fin_categorias","fin_subcategorias",
-               "fin_recorrencias","fin_faturas","fin_lancamentos"];
+               "fin_recorrencias","fin_faturas","fin_lancamentos","fin_anexos"];
   var res = await Promise.all(nomes.map(function(t){ return API.listar(t); }));
   D.contas=res[0]; D.cartoes=res[1]; D.categorias=res[2]; D.subcategorias=res[3];
-  D.recorrencias=res[4]; D.faturas=res[5]; D.lancamentos=res[6];
+  D.recorrencias=res[4]; D.faturas=res[5]; D.lancamentos=res[6]; D.anexos=res[7]||[];
   await gerarRecorrencias();
 }
 
@@ -493,6 +580,8 @@ function casca(){
       VIEWS.map(function(v){
         return '<button type="button" data-view="'+v[0]+'" aria-current="'+(estado.view===v[0])+'">'+v[1]+'</button>';
       }).join("")+
+      '<button type="button" id="ocultar" class="tema" data-act="ocultarValores">'+
+        (OCULTO ? "Mostrar valores" : "Ocultar valores")+'</button>'+
       '<button type="button" id="tema" class="tema" data-act="trocarTema">'+
         (temaAtual()==="dark" ? "Tema claro" : "Tema escuro")+'</button>'+
     '</nav>'+
@@ -690,8 +779,11 @@ function linhaLanc(l){
   var origem = l.forma==="cartao"
     ? ((cartao(l.cartao_id)||{}).nome||"cartão") + (l.parcela_total>1 ? " · "+l.parcela_num+"/"+l.parcela_total : "")
     : ((conta(l.conta_id)||{}).nome||"conta");
+  var nAnexos = anexosDe(l).length;
   return '<tr><td class="num">'+dBR(l.data)+'</td>'+
     '<td><span class="forte">'+esc(l.descricao)+'</span>'+
+      (nAnexos ? '<button type="button" class="clipe-lista" data-act="verAnexos" data-id="'+l.id+
+        '" title="Ver anexos">📎 '+nAnexos+'</button>' : "")+
       (l.recorrencia_id?'<div class="legenda">recorrente</div>':"")+'</td>'+
     '<td>'+esc(nomeCat(l))+'</td>'+
     '<td>'+esc(origem)+'</td>'+
@@ -1080,7 +1172,26 @@ function corpoLancamento(l){
     '<label class="caixa"><input type="checkbox" id="fInfo"'+(l.informativo?" checked":"")+'>'+
       '<span><b>Apenas informativo</b><br><span class="legenda">Fica registrado, mas não desconta da conta '+
       'nem entra no limite, na fatura, no painel ou nos relatórios.</span></span></label>'+
+    '<div class="campo"><label class="rotulo">Anexos</label>'+
+      '<div id="listaAnexos">'+(l.id ? listaAnexosHtml(l) : "")+'</div>'+
+      '<input type="file" id="fArq" multiple>'+
+      '<span class="legenda">Comprovante, nota fiscal, o que precisar — até 10 MB por arquivo.</span>'+
+    '</div>'+
     '<div class="campo"><label class="rotulo">Observação</label><textarea id="fObs">'+esc(l.observacao||"")+'</textarea></div>';
+}
+
+function listaAnexosHtml(l){
+  var as = anexosDe(l);
+  if(!as.length) return "";
+  return '<ul class="anexos">'+as.map(function(a){
+    return '<li><span class="clipe" aria-hidden="true">📎</span>'+
+      '<span class="nome">'+esc(a.nome)+'</span>'+
+      '<span class="legenda">'+tamanhoArquivo(a.tamanho)+'</span>'+
+      '<span class="acoes">'+
+        '<button type="button" class="btn sm" data-act="baixarAnexo" data-id="'+a.id+'">Abrir</button>'+
+        '<button type="button" class="btn sm" data-act="removerAnexo" data-id="'+a.id+'">Excluir</button>'+
+      '</span></li>';
+  }).join("")+'</ul>';
 }
 
 function ligarFormLanc(d, l){
@@ -1119,6 +1230,14 @@ var ACOES = {
     aplicarTema(temaAtual()==="dark" ? "light" : "dark");
   },
 
+  ocultarValores: function(){
+    OCULTO = !OCULTO;
+    try{ localStorage.setItem("fin.ocultar", OCULTO ? "1" : "0"); }catch(e){}
+    var b = document.getElementById("ocultar");
+    if(b) b.textContent = OCULTO ? "Mostrar valores" : "Ocultar valores";
+    render();
+  },
+
   limparFiltros: function(){
     estado.filtros = { de:"", ate:"", status:"", categoria:"", forma:"", tipo:"" };
     render();
@@ -1147,6 +1266,7 @@ var ACOES = {
           observacao:obs||null, informativo:info
         }))[0];
         D.lancamentos.push(novo);
+        await enviarAnexos(novo, $("#fArq",d).files);
         return;
       }
 
@@ -1177,14 +1297,18 @@ var ACOES = {
       }
       var ins = await API.inserir("fin_lancamentos", linhas);
       D.lancamentos = D.lancamentos.concat(ins);
+      // o anexo fica na primeira parcela e vale para a compra inteira
+      await enviarAnexos(ins[0], $("#fArq",d).files);
     });
     ligarFormLanc(d);
   },
 
   novaRecorrencia: function(){
     if(!D.categorias.length) return alert("Cadastre ao menos uma categoria antes.");
+    // recorrência não recebe anexo: o arquivo vai no lançamento gerado
     var corpo = corpoLancamento()
       .replace('<div class="campo"><label class="rotulo">Situação</label>','<div class="campo" style="display:none"><label class="rotulo">Situação</label>')
+      .replace('<div class="campo"><label class="rotulo">Anexos</label>','<div class="campo" style="display:none"><label class="rotulo">Anexos</label>')
       + '<div class="linha l3">'+
         '<div class="campo"><label class="rotulo">Dia do mês</label><input id="fDia" type="number" min="1" max="31" value="'+new Date().getDate()+'"></div>'+
         '<div class="campo"><label class="rotulo">Início</label><input id="fInicio" type="date" value="'+hoje()+'"></div>'+
@@ -1269,6 +1393,7 @@ var ACOES = {
 
       await API.atualizar("fin_lancamentos", l.id, campos);
       Object.assign(l, campos);
+      await enviarAnexos(l, $("#fArq",d).files);
     }, "Salvar alterações");
 
     ligarFormLanc(d, l);
@@ -1283,6 +1408,46 @@ var ACOES = {
     }
   },
 
+  baixarAnexo: async function(b){
+    var a = D.anexos.filter(x=>x.id===b.dataset.id)[0];
+    if(!a) return;
+    var antes = b.textContent;
+    b.textContent = "abrindo…"; b.disabled = true;
+    try{
+      var url = await API.linkArquivo(a.caminho);
+      window.open(url, "_blank", "noopener");
+    }catch(e){
+      alert("Não consegui abrir o arquivo: " + (e.message||e));
+    }
+    b.textContent = antes; b.disabled = false;
+  },
+
+  removerAnexo: async function(b){
+    var a = D.anexos.filter(x=>x.id===b.dataset.id)[0];
+    if(!a) return;
+    if(!confirm('Excluir o anexo "'+a.nome+'"? Isso não dá para desfazer.')) return;
+    await apagarAnexo(a);
+    // atualiza a lista dentro do diálogo, se ele estiver aberto
+    var dlg = b.closest("dialog"), lista = dlg && dlg.querySelector("#listaAnexos");
+    if(lista){
+      var l = D.lancamentos.filter(x=>x.id===a.lancamento_id)[0];
+      lista.innerHTML = l ? listaAnexosHtml(l) : "";
+    } else {
+      render();
+    }
+  },
+
+  verAnexos: function(b){
+    var l = D.lancamentos.filter(x=>x.id===b.dataset.id)[0];
+    if(!l) return;
+    abrirDialogo("Anexos · "+l.descricao,
+      '<div id="listaAnexos">'+listaAnexosHtml(l)+'</div>'+
+      '<div class="campo"><label class="rotulo">Adicionar</label>'+
+        '<input type="file" id="fArq" multiple>'+
+        '<span class="legenda">Até 10 MB por arquivo.</span></div>',
+      async function(d){ await enviarAnexos(l, $("#fArq",d).files); }, "Anexar");
+  },
+
   pagarLanc: async function(b){
     var l = D.lancamentos.filter(x=>x.id===b.dataset.id)[0];
     if(!l) return;
@@ -1294,10 +1459,17 @@ var ACOES = {
   apagarLanc: async function(b){
     var l = D.lancamentos.filter(x=>x.id===b.dataset.id)[0];
     if(!l) return;
+    var meus = D.anexos.filter(function(a){ return a.lancamento_id===l.id; });
     var msg = l.compra_id
       ? "Excluir esta parcela? As outras parcelas da mesma compra continuam."
       : "Excluir este lançamento?";
+    if(meus.length) msg += "\n\n" + meus.length + " anexo(s) vão junto.";
     if(!confirm(msg)) return;
+    for(var i=0;i<meus.length;i++){
+      try{ await API.apagarArquivo(meus[i].caminho); }catch(e){}
+      try{ await API.apagar("fin_anexos", meus[i].id); }catch(e){}
+    }
+    D.anexos = D.anexos.filter(function(a){ return a.lancamento_id!==l.id; });
     await API.apagar("fin_lancamentos", l.id);
     D.lancamentos = D.lancamentos.filter(x=>x.id!==l.id);
     render();
