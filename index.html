@@ -985,6 +985,7 @@ function vCartoes(){
         '<div class="medidor"><i style="width:'+pctUso+'%;background:'+cor+'"></i></div>'+
         '<div class="d">usado '+BRL(usado)+' ('+PCT(pctUso)+' do limite)</div>'+
         '<div class="d">'+esc(c.emissor||"—")+' · fecha dia '+c.dia_fechamento+' · vence dia '+c.dia_vencimento+'</div>'+
+        '<div class="d">paga pela '+esc((conta(c.conta_padrao_id)||{}).nome || "conta escolhida na hora")+'</div>'+
         '<div class="acoes" style="margin-top:12px">'+
           '<button class="btn sm" data-act="verFaturas" data-id="'+c.id+'">Faturas</button>'+
           '<button class="btn sm" data-act="editarCartao" data-id="'+c.id+'">Editar</button>'+
@@ -1166,8 +1167,8 @@ function opcoesSub(catId, sel){
   return '<option value="">— nenhuma —</option>'+
     D.subcategorias.filter(s=>s.categoria_id===catId).map(s=>'<option value="'+s.id+'"'+(s.id===sel?" selected":"")+'>'+esc(s.nome)+'</option>').join("");
 }
-function opcoesConta(sel){
-  return '<option value="">— escolha —</option>'+
+function opcoesConta(sel, vazio){
+  return '<option value="">'+esc(vazio || "— escolha —")+'</option>'+
     D.contas.filter(c=>c.ativo!==false || c.id===sel)
       .map(c=>'<option value="'+c.id+'"'+(c.id===sel?" selected":"")+'>'+esc(c.nome)+' ('+BRL(saldoConta(c.id))+')</option>').join("");
 }
@@ -1292,6 +1293,10 @@ function corpoCartao(c){
       '<div class="campo"><label class="rotulo">Dia do vencimento</label>'+
         '<input id="kVenc" type="number" min="1" max="31" value="'+(c.dia_vencimento||10)+'"></div>'+
     '</div>'+
+    '<div class="campo"><label class="rotulo">Conta que paga a fatura</label>'+
+      '<select id="kConta">'+opcoesConta(c.conta_padrao_id, "— escolher na hora —")+'</select>'+
+      '<span class="legenda">Já vem marcada quando você registrar o pagamento da fatura. '+
+      'Dá para trocar na hora, se precisar.</span></div>'+
     corpoAparencia(c, ICONES_BANCO)+
     (c.id ? '<p class="legenda" style="margin:-8px 0 14px">Mudar os dias vale para as próximas compras; '+
       'as faturas já abertas continuam com as datas de quando foram criadas.</p>'+
@@ -1308,6 +1313,7 @@ function lerCartao(d){
   return { nome:nome, emissor:$("#kEmissor",d).value.trim()||null,
            limite_total:Number($("#kLimite",d).value)||0,
            dia_fechamento:fech, dia_vencimento:venc,
+           conta_padrao_id: $("#kConta",d).value || null,
            ativo: $("#kAtivo",d) ? $("#kAtivo",d).checked : true,
            icone:ap.icone, cor:ap.cor };
 }
@@ -1714,7 +1720,8 @@ var ACOES = {
     abrirDialogo("Registrar pagamento da fatura",
       '<div class="aviso">Fatura de <b>'+esc((cartao(f.cartao_id)||{}).nome||"")+'</b> · '+
         'vencimento '+dBR(f.vencimento)+' · total <b>'+BRL(total)+'</b></div>'+
-      '<div class="campo"><label class="rotulo">Pagar com a conta</label><select id="pConta">'+opcoesConta()+'</select></div>'+
+      '<div class="campo"><label class="rotulo">Pagar com a conta</label><select id="pConta">'+
+        opcoesConta((cartao(f.cartao_id)||{}).conta_padrao_id)+'</select></div>'+
       '<div class="linha l2">'+
         '<div class="campo"><label class="rotulo">Data do pagamento</label><input id="pData" type="date" value="'+hoje()+'"></div>'+
         '<div class="campo"><label class="rotulo">Valor (R$)</label><input id="pValor" type="number" step="0.01" value="'+total.toFixed(2)+'"></div>'+
