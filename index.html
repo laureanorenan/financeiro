@@ -56,6 +56,16 @@ a{color:var(--chart-1)}
 .nav button:hover{background:var(--surface-100);color:var(--ink-900)}
 .nav button[aria-current="true"]{background:var(--surface-brand);color:var(--on-brand);font-weight:500}
 .nav .tema{margin-top:var(--space-5);font-size:12px;color:var(--ink-500)}
+.nav .ic{display:none}
+.nav .so-celular{display:none}
+.menu-mais{display:flex;flex-direction:column;gap:2px}
+.menu-mais hr{border:0;border-top:1px solid var(--border-subtle);margin:var(--space-2) 0}
+.item-mais{display:flex;align-items:center;gap:var(--space-3);width:100%;background:none;border:0;
+  cursor:pointer;padding:12px var(--space-3);border-radius:var(--radius-md);
+  color:var(--ink-700);text-align:left;font:inherit;font-size:15px}
+.item-mais:hover{background:var(--surface-100);color:var(--ink-900)}
+.item-mais[aria-current="true"]{background:var(--surface-brand);color:var(--on-brand);font-weight:500}
+.item-mais .ic{width:20px;height:20px;flex:0 0 20px}
 .conteudo{padding:var(--space-5);padding-bottom:88px;max-width:1320px;width:100%}
 .topo{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--space-4);flex-wrap:wrap;margin-bottom:var(--space-5)}
 .topo h1{font-size:22px;font-weight:700;color:var(--ink-900)}
@@ -160,6 +170,10 @@ ul.anexos .acoes{flex:none;display:flex;gap:6px}
 .linha{display:grid;gap:var(--space-3)}
 .l2{grid-template-columns:1fr 1fr} .l3{grid-template-columns:1fr 1fr 1fr}
 .filtros{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--space-3);align-items:end}
+/* o campo de data tem largura mínima própria; sem isto ele estica a coluna
+   e empurra o conteúdo para fora do cartão */
+.campo input,.campo select,.campo textarea{min-width:0}
+.filtros > *{min-width:0}
 
 dialog{border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:0;
   background:var(--surface-000);color:var(--ink-700);max-width:640px;width:calc(100% - 28px)}
@@ -182,15 +196,103 @@ dialog::backdrop{background:rgba(0,38,63,.5)}
   background:var(--surface-000);font-size:13px;margin-bottom:var(--space-3)}
 .carregando{padding:var(--space-8);text-align:center;color:var(--ink-500)}
 
+/* ============================================================
+   Celular — o menu desce para a base e as tabelas viram cartões.
+   No computador (acima de 820px) nada muda.
+   ============================================================ */
 @media (max-width:820px){
-  .app{grid-template-columns:1fr}
-  .nav{border-right:0;border-bottom:1px solid var(--border-subtle);display:flex;gap:var(--space-2);
-    overflow-x:auto;padding:var(--space-3);align-items:center}
-  .marca{margin:0 var(--space-3) 0 0}
-  .nav button{width:auto;white-space:nowrap}
-  .conteudo{padding:var(--space-4)}
+  body{font-size:15px}
+  .app{display:block;min-height:100vh}
+
+  /* barra de navegação fixa na base */
+  .nav{position:fixed;left:0;right:0;bottom:0;z-index:75;display:flex;gap:0;
+    border-right:0;border-top:1px solid var(--border-subtle);
+    padding:6px 4px calc(6px + env(safe-area-inset-bottom));
+    box-shadow:0 -2px 14px rgba(0,38,63,.10)}
+  .marca{display:none}
+  .nav .tema{display:none}
+  .nav .so-pc{display:none}
+  .nav .so-celular{display:flex}
+  .nav button{flex:1 1 0;min-width:0;width:auto;flex-direction:column;gap:3px;
+    align-items:center;justify-content:center;padding:7px 2px;margin:0;
+    font-size:10.5px;line-height:1.2;text-align:center;border-radius:10px}
+  .nav button:hover{background:none}
+  .nav button[aria-current="true"]{background:none;color:var(--chart-1);font-weight:600}
+  .nav .ic{display:block;width:21px;height:21px;flex:0 0 21px}
+  .nav button span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+
+  .conteudo{padding:var(--space-4);max-width:none;
+    padding-bottom:calc(86px + env(safe-area-inset-bottom))}
+
+  /* o título da tela acompanha a rolagem */
+  .topo{position:sticky;top:0;z-index:60;background:var(--surface-100);
+    align-items:flex-start;gap:var(--space-3);
+    margin:calc(var(--space-4) * -1) calc(var(--space-4) * -1) var(--space-4);
+    padding:var(--space-3) var(--space-4) var(--space-3);
+    border-bottom:1px solid var(--border-subtle)}
+  .topo h1{font-size:19px}
+  .topo .acoes{width:100%}
+  .topo .acoes .btn{flex:1 1 auto;height:40px}
+
   .grid2{grid-template-columns:1fr}
   .l2,.l3{grid-template-columns:1fr}
+  .kpis{grid-template-columns:repeat(2,1fr);gap:var(--space-3)}
+  .kpi{padding:var(--space-3)}
+  .kpi .v{font-size:21px}
+  .filtros{grid-template-columns:repeat(2,minmax(0,1fr))}
+  /* De e Até não cabem lado a lado num celular sem cortar o calendário */
+  .filtros .campo-data{grid-column:1 / -1}
+  .filtros .btn{height:44px}
+  /* o seletor de mês do topo também tem largura mínima própria */
+  .topo input[type=month]{min-width:0;flex:1 1 150px;font-size:16px;height:40px}
+  .card-h{padding:var(--space-4) var(--space-4) var(--space-3)}
+
+  /* tabelas largas viram uma lista de cartões */
+  .tabela-rolagem{overflow-x:visible}
+  th.col-origem, td.col-origem{min-width:0}
+  table.stack{display:block}
+  table.stack > thead{display:none}
+  table.stack > tbody, table.stack > tfoot{display:block}
+  table.stack > tbody > tr, table.stack > tfoot > tr{display:flex;flex-direction:column;
+    padding:11px 14px;border-bottom:1px solid var(--border-subtle)}
+  table.stack > tbody > tr:last-child{border-bottom:0}
+  table.stack > tfoot > tr{background:var(--surface-100)}
+  table.stack td{display:flex;align-items:baseline;justify-content:space-between;gap:14px;
+    border:0;padding:3px 0;text-align:right}
+  table.stack td::before{content:attr(data-l);color:var(--ink-500);font-size:10.5px;
+    text-transform:uppercase;letter-spacing:.04em;flex:0 0 auto;text-align:left;padding-top:3px}
+  table.stack td[data-l=""]::before{content:none}
+  table.stack td[data-l=""]{justify-content:flex-end;padding-top:8px}
+  table.stack td:empty{display:none}
+  table.stack .com-ico{justify-content:flex-end;text-align:right}
+  table.stack .acoes{justify-content:flex-end}
+  /* o detalhe de um grupo é uma tabela dentro da outra */
+  table.stack > tbody > tr.detalhe{display:block;padding:0}
+  table.stack > tbody > tr.detalhe > td{display:block;padding:0;text-align:left}
+  table.stack > tbody > tr.detalhe > td::before{content:none}
+  table.stack > tbody > tr.grupo{background:var(--surface-100)}
+
+  /* o diálogo vira uma folha que sobe pela base */
+  dialog{width:100%;max-width:none;max-height:94vh;margin:auto auto 0;
+    border-bottom:0;border-radius:var(--radius-lg) var(--radius-lg) 0 0}
+  .dlg-b{max-height:68vh}
+  .dlg-f{flex-wrap:wrap;padding-bottom:calc(var(--space-4) + env(safe-area-inset-bottom))}
+  .dlg-f .btn{flex:1 1 auto}
+  .dlg-f .btn.primary{flex:1 1 100%;order:-1;height:42px}
+  /* 16px evita o zoom automático do navegador ao focar um campo */
+  .campo input,.campo select,.campo textarea{font-size:16px;height:44px;padding:0 var(--space-3)}
+  .campo textarea{height:72px;padding:var(--space-2) var(--space-3)}
+  .campo input[type=file]{height:auto;padding:8px;font-size:14px}
+  .caixa{padding:12px 14px}
+
+  /* a barra de exemplo não pode ficar embaixo do menu */
+  #barraExemplo{bottom:calc(78px + env(safe-area-inset-bottom))!important;
+    right:12px!important;left:12px!important;justify-content:flex-end}
+}
+:root[data-theme="dark"] .nav button[aria-current="true"]{color:var(--surface-accent)}
+@media (max-width:380px){
+  .nav button{font-size:9.5px}
+  .kpis{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -651,6 +753,24 @@ var VIEWS = [
   ["painel","Painel"], ["lancamentos","Lançamentos"], ["contas","Contas"],
   ["cartoes","Cartões"], ["faturas","Faturas"], ["categorias","Categorias"], ["relatorios","Relatórios"]
 ];
+/* No celular o menu vai para a base da tela: estes quatro ficam à mão,
+   o resto entra no botão "Mais". No computador nada disso aparece. */
+var VIEWS_CELULAR = ["painel","lancamentos","contas","cartoes"];
+var ICONES_NAV = {
+  painel:      '<path d="M3 13h6V3H3zM15 21h6V11h-6zM3 21h6v-5H3zM15 7h6V3h-6z"/>',
+  lancamentos: '<path d="M3 7h18v12H3z"/><path d="M3 11h18M7 15h4"/>',
+  contas:      '<path d="M4 10h16M3 10l9-6 9 6M6 10v8M10 10v8M14 10v8M18 10v8M3 20h18"/>',
+  cartoes:     '<path d="M3 6h18v12H3z"/><path d="M3 10h18M6 15h4"/>',
+  faturas:     '<path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2z"/><path d="M8 8h8M8 12h8"/>',
+  categorias:  '<path d="M4 6h7l2 2h7v10H4z"/>',
+  relatorios:  '<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>',
+  mais:        '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>'
+};
+function icoNav(chave){
+  return '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" '+
+    'stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+
+    (ICONES_NAV[chave]||"")+'</svg>';
+}
 
 /* Tema: mesma chave que o RLhub usa, para as páginas ficarem iguais. */
 function temaAtual(){
@@ -682,8 +802,12 @@ function casca(){
       '<div class="marca"><span class="mk">R$</span><span><b>Receitas e Despesas</b>'+
         '<span class="legenda">Finanças pessoais</span></span></div>'+
       VIEWS.map(function(v){
-        return '<button type="button" data-view="'+v[0]+'" aria-current="'+(estado.view===v[0])+'">'+v[1]+'</button>';
+        return '<button type="button" data-view="'+v[0]+'" class="'+
+          (VIEWS_CELULAR.indexOf(v[0])<0 ? "so-pc" : "")+'" aria-current="'+(estado.view===v[0])+'">'+
+          icoNav(v[0])+'<span>'+v[1]+'</span></button>';
       }).join("")+
+      '<button type="button" class="so-celular" id="btMais" data-act="maisMenu">'+
+        icoNav("mais")+'<span>Mais</span></button>'+
       '<button type="button" id="ocultar" class="tema" data-act="ocultarValores">'+
         (OCULTO ? "Mostrar valores" : "Ocultar valores")+'</button>'+
       '<button type="button" id="tema" class="tema" data-act="trocarTema">'+
@@ -696,13 +820,33 @@ function casca(){
 function render(){
   var raiz = $("#raiz");
   if(!raiz.querySelector(".app")) raiz.innerHTML = casca();
-  $$(".nav button").forEach(function(b){ b.setAttribute("aria-current", String(estado.view===b.dataset.view)); });
+  $$(".nav button[data-view]").forEach(function(b){ b.setAttribute("aria-current", String(estado.view===b.dataset.view)); });
+  var bm = document.getElementById("btMais");
+  if(bm) bm.setAttribute("aria-current", String(VIEWS_CELULAR.indexOf(estado.view) < 0));
   var alvo = $("#conteudo");
   var f = { painel:vPainel, lancamentos:vLancamentos, contas:vContas, cartoes:vCartoes,
             faturas:vFaturas, categorias:vCategorias, relatorios:vRelatorios }[estado.view];
   alvo.innerHTML = f();
   alvo.scrollTop = 0;
+  rotularTabelas(alvo);
   barraExemplo();
+}
+
+/* No celular as tabelas viram cartões, uma linha por informação. Para não
+   repetir o cabeçalho em cada célula na mão, ele é copiado aqui, na hora. */
+function rotularTabelas(raiz){
+  $$("table", raiz).forEach(function(t){
+    t.classList.add("stack");
+    var ths = [].map.call(t.querySelectorAll(":scope > thead > tr > th"),
+                          function(th){ return th.textContent.trim(); });
+    [].forEach.call(t.querySelectorAll(":scope > tbody > tr, :scope > tfoot > tr"), function(tr){
+      var i = 0;
+      [].forEach.call(tr.children, function(td){
+        if(!td.hasAttribute("data-l")) td.setAttribute("data-l", ths[i] || "");
+        i += td.colSpan || 1;
+      });
+    });
+  });
 }
 
 /* Barra flutuante: só aparece se ainda houver dados de exemplo guardados,
@@ -995,7 +1139,8 @@ function linhaLanc(l){
 }
 
 function campoFiltro(k,rot,tipo,val){
-  return '<div class="campo" style="margin:0"><label class="rotulo">'+rot+'</label>'+
+  return '<div class="campo'+(tipo==="date" ? " campo-data" : "")+'" style="margin:0">'+
+    '<label class="rotulo">'+rot+'</label>'+
     '<input type="'+tipo+'" data-act="filtro" data-k="'+k+'" value="'+(val||"")+'"></div>';
 }
 function selFiltro(k,rot,ops,val){
@@ -1250,11 +1395,13 @@ function abrirDialogo(titulo, corpoHtml, aoConfirmar, rotuloConfirmar){
   var d = document.createElement("dialog");
   d.innerHTML = '<form method="dialog"><div class="dlg-h"><h3>'+esc(titulo)+'</h3></div>'+
     '<div class="dlg-b">'+corpoHtml+'<p class="erro" id="dlgErro" style="display:none"></p></div>'+
-    '<div class="dlg-f"><button class="btn" value="cancelar" type="submit">Cancelar</button>'+
-    '<button class="btn primary" id="dlgOk" type="button">'+esc(rotuloConfirmar||"Salvar")+'</button></div></form>';
+    '<div class="dlg-f"><button class="btn" value="cancelar" type="submit">'+
+      (aoConfirmar ? "Cancelar" : "Fechar")+'</button>'+
+    (aoConfirmar ? '<button class="btn primary" id="dlgOk" type="button">'+
+      esc(rotuloConfirmar||"Salvar")+'</button>' : "")+'</div></form>';
   document.body.appendChild(d);
   d.addEventListener("close", function(){ d.remove(); });
-  $("#dlgOk", d).addEventListener("click", async function(){
+  if(aoConfirmar) $("#dlgOk", d).addEventListener("click", async function(){
     var erro = $("#dlgErro", d);
     erro.style.display = "none";
     try{
@@ -1272,6 +1419,12 @@ function abrirDialogo(titulo, corpoHtml, aoConfirmar, rotuloConfirmar){
   return d;
 }
 function falha(msg){ throw new Error(msg); }
+
+/* Fecha o menu "Mais" quando a escolha foi feita dentro dele */
+function fecharMais(b){
+  var d = b && b.closest ? b.closest("dialog") : null;
+  if(d) d.close();
+}
 
 function opcoesCategoria(tipo, sel){
   return '<option value="">— escolha —</option>'+
@@ -1620,15 +1773,39 @@ var ACOES = {
   mudarMes: function(){},   // tratado no change abaixo
   filtro: function(){},
 
-  trocarTema: function(){
+  trocarTema: function(b){
+    fecharMais(b);
     aplicarTema(temaAtual()==="dark" ? "light" : "dark");
   },
 
-  ocultarValores: function(){
+  ocultarValores: function(b){
+    fecharMais(b);
     OCULTO = !OCULTO;
     try{ localStorage.setItem("fin.ocultar", OCULTO ? "1" : "0"); }catch(e){}
     var b = document.getElementById("ocultar");
     if(b) b.textContent = OCULTO ? "Mostrar valores" : "Ocultar valores";
+    render();
+  },
+
+  maisMenu: function(){
+    var resto = VIEWS.filter(function(v){ return VIEWS_CELULAR.indexOf(v[0]) < 0; });
+    var corpo = '<div class="menu-mais">'+
+      resto.map(function(v){
+        return '<button type="button" class="item-mais" data-act="irPara" data-view="'+v[0]+'"'+
+          (estado.view===v[0] ? ' aria-current="true"' : '')+'>'+icoNav(v[0])+'<span>'+v[1]+'</span></button>';
+      }).join("")+
+      '<hr>'+
+      '<button type="button" class="item-mais" data-act="ocultarValores">'+
+        (OCULTO ? "Mostrar valores" : "Ocultar valores")+'</button>'+
+      '<button type="button" class="item-mais" data-act="trocarTema">'+
+        (temaAtual()==="dark" ? "Tema claro" : "Tema escuro")+'</button>'+
+    '</div>';
+    abrirDialogo("Mais", corpo, null, null);
+  },
+
+  irPara: function(b){
+    estado.view = b.dataset.view;
+    var d = b.closest("dialog"); if(d) d.close();
     render();
   },
 
