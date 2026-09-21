@@ -94,6 +94,7 @@ tfoot td{font-weight:500;background:var(--surface-100);color:var(--ink-900)}
 .r{text-align:right}
 .tabela-rolagem{overflow-x:auto}
 /* cabecalho de grupo, quando a lista esta agrupada por cartao/conta */
+th.col-origem, td.col-origem{min-width:190px}
 tr.grupo td{vertical-align:middle}
 tr.grupo .g-nome{display:flex;align-items:center;gap:8px;color:var(--ink-900);font-weight:500}
 /* o detalhe de um grupo entra embaixo da linha dele, sem moldura própria */
@@ -881,9 +882,12 @@ function vLancamentos(){
     '</div>';
 }
 
+/* Deixa claro, ao lado do nome, de onde saiu o dinheiro */
+function tipoOrigem(forma){ return forma==="cartao" ? "cartão de crédito" : "banco"; }
+
 function tabelaLancamentos(lista){
   return '<div class="tabela-rolagem"><table><thead><tr>'+
-    '<th>Data</th><th>Descrição</th><th>Categoria</th><th>Origem</th>'+
+    '<th>Data</th><th>Descrição</th><th>Categoria</th><th class="col-origem">Origem</th>'+
     '<th class="r">Valor</th><th>Situação</th><th></th></tr></thead><tbody>'+
     lista.map(linhaLanc).join("")+
     '</tbody></table></div>';
@@ -911,7 +915,8 @@ function agruparPorOrigem(lista){
       var contam = valem(grupos[k]);
       return {
         chave: k, reg: reg, itens: grupos[k],
-        nome: reg.nome || (ehCartao ? "cartão removido" : "conta removida"),
+        nome: (reg.nome || (ehCartao ? "cartão removido" : "conta removida")) +
+              " ("+tipoOrigem(ehCartao ? "cartao" : "conta")+")",
         receitas: contam.filter(function(l){ return l.tipo==="receita"; })
                         .reduce(function(a,l){ return a+Number(l.valor); }, 0),
         despesas: contam.filter(function(l){ return l.tipo==="despesa"; })
@@ -953,7 +958,7 @@ function linhaLanc(l){
   var serie = l.parcela_total > 1 ? " · "+l.parcela_num+"/"+l.parcela_total : "";
   var origem = (l.forma==="cartao"
     ? ((cartao(l.cartao_id)||{}).nome||"cartão")
-    : ((conta(l.conta_id)||{}).nome||"conta")) + serie;
+    : ((conta(l.conta_id)||{}).nome||"conta")) + " ("+tipoOrigem(l.forma)+")" + serie;
   // compra adiada: avisa em qual fatura ela caiu
   var adiada = "";
   if(l.forma==="cartao" && l.fatura_id){
@@ -969,7 +974,7 @@ function linhaLanc(l){
       (l.recorrencia_id?'<div class="legenda">recorrente</div>':"")+'</td>'+
     '<td><div class="com-ico">'+chipIcone(categoria(l.categoria_id)||{}, 14)+
       '<span>'+esc(nomeCat(l))+'</span></div></td>'+
-    '<td><div class="com-ico">'+
+    '<td class="col-origem"><div class="com-ico">'+
       chipIcone((l.forma==="cartao" ? cartao(l.cartao_id) : conta(l.conta_id)) || {}, 14)+
       '<span>'+esc(origem)+adiada+'</span></div></td>'+
     '<td class="r num '+(ehInfo(l) ? "valor-info" : (l.tipo==="receita"?"pos":""))+'">'+
@@ -1091,6 +1096,17 @@ function vCartoes(){
 /* ===================================================================
    Faturas
 =================================================================== */
+/* A fatura que o usuário tem para resolver agora: a primeira em aberto que
+   ainda não venceu; se todas já venceram, a mais antiga em aberto. */
+function proximaCompetencia(fats){
+  var abertas = fats.filter(function(x){ return x.f.status!=="paga"; })
+    .slice().sort(function(a,b){ return a.f.competencia < b.f.competencia ? -1 : 1; });
+  var h = hoje();
+  var futura = abertas.filter(function(x){ return x.f.vencimento >= h; })[0];
+  var escolha = futura || abertas[0] || fats[0];
+  return escolha ? escolha.f.competencia : undefined;
+}
+
 function vFaturas(){
   var cid = estado.cartaoFatura || (D.cartoes[0] && D.cartoes[0].id);
   var c = cartao(cid);
@@ -1102,8 +1118,7 @@ function vFaturas(){
     .map(f=>({f:f,total:totalFatura(f)}))
     .sort((a,b)=> a.f.competencia < b.f.competencia ? 1 : -1);
 
-  var sel = estado.competenciaFatura ||
-    (fats.filter(x=>x.f.status!=="paga")[0]||fats[0]||{f:{}}).f.competencia;
+  var sel = estado.competenciaFatura || proximaCompetencia(fats);
   var atual = fats.filter(x=>x.f.competencia===sel)[0];
 
   var itens = atual ? D.lancamentos.filter(l=>l.fatura_id===atual.f.id)
@@ -1451,6 +1466,15 @@ function corpoLancamento(l){
         '<div class="campo"><label class="rotulo">&nbsp;</label><div class="legenda" id="infoCartao">—</div></div>'+
       '</div>'+
     '</div>'+
+    (l.compra_id && l.parcela_total > 1
+      ? '<div class="campo" id="blocoEscopo"><label class="rotulo">Aplicar a</label><select id="fEscopo">'+
+          '<option value="uma">Somente esta ('+l.parcela_num+'/'+l.parcela_total+')</option>'+
+          '<option value="pendentes">Esta e as seguintes ainda não baixadas</option>'+
+          '<option value="todas">Todas as '+l.parcela_total+', inclusive as já baixadas</option>'+
+        '</select>'+
+        '<span class="legenda">Vale para descrição, valor, categoria e observação. '+
+        'Data e situação mudam só nesta.</span></div>'
+      : "")+
     '<div class="campo"><label class="rotulo">Situação</label><select id="fStatus">'+
       '<option value="pago"'+sel(l.status,"pago")+'>Já pago / recebido</option>'+
       '<option value="pendente"'+sel(l.status||"pendente","pendente")+'>Pendente</option></select></div>'+
@@ -1547,6 +1571,20 @@ function ligarFormLanc(d, l){
   });
   $("#fCat",d).addEventListener("change", function(){ $("#fSub",d).innerHTML = opcoesSub($("#fCat",d).value); });
   sync();
+}
+
+/* Já saiu do bolso? (conta paga, ou fatura do cartão quitada) */
+function jaBaixado(l){ return statusLanc(l) === "pago"; }
+
+/* Quais cobranças da série recebem a alteração, conforme a escolha do usuário */
+function alvosDaEdicao(l, escopo){
+  if(!l.compra_id || !(l.parcela_total > 1) || escopo === "uma") return [l];
+  var irmaos = irmaosDe(l).slice().sort(function(a,b){ return (a.parcela_num||0) - (b.parcela_num||0); });
+  if(escopo === "todas") return irmaos;
+  // "pendentes": esta e as seguintes que ainda não foram baixadas
+  return irmaos.filter(function(x){
+    return x.id === l.id || ((x.parcela_num||0) > (l.parcela_num||0) && !jaBaixado(x));
+  });
 }
 
 /* Quantas cobranças a despesa de conta vai gerar (1 = a de sempre) */
@@ -1784,8 +1822,20 @@ var ACOES = {
           falha("Esta compra cairia numa fatura já paga. Escolha outra data.");
       }
 
-      await API.atualizar("fin_lancamentos", l.id, campos);
-      Object.assign(l, campos);
+      // numa série, o usuário escolhe até onde a alteração vale
+      var escopo = $("#fEscopo",d) ? $("#fEscopo",d).value : "uma";
+      var alvos = alvosDaEdicao(l, escopo);
+      // o que é da cobrança em si não se espalha para as irmãs
+      var comuns = {};
+      ["descricao","valor","categoria_id","subcategoria_id","observacao","informativo"]
+        .forEach(function(k){ if(k in campos) comuns[k] = campos[k]; });
+
+      for(var iA=0; iA<alvos.length; iA++){
+        var alvo = alvos[iA];
+        var mudanca = alvo.id === l.id ? campos : comuns;
+        await API.atualizar("fin_lancamentos", alvo.id, mudanca);
+        Object.assign(alvo, mudanca);
+      }
       await enviarAnexos(l, $("#fArq",d).files);
     }, "Salvar alterações");
 
