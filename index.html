@@ -882,8 +882,14 @@ function vLancamentos(){
     '</div>';
 }
 
-/* Deixa claro, ao lado do nome, de onde saiu o dinheiro */
-function tipoOrigem(forma){ return forma==="cartao" ? "cartão de crédito" : "banco"; }
+/* Deixa claro, ao lado do nome, de onde saiu o dinheiro.
+   Na conta usa o tipo que está no cadastro dela. */
+var ROTULO_CONTA = { corrente:"conta-corrente", poupanca:"poupança",
+                     investimento:"investimento", dinheiro:"dinheiro" };
+function tipoOrigem(forma, reg){
+  if(forma === "cartao") return "cartão de crédito";
+  return ROTULO_CONTA[(reg||{}).tipo] || "conta-corrente";
+}
 
 function tabelaLancamentos(lista){
   return '<div class="tabela-rolagem"><table><thead><tr>'+
@@ -916,7 +922,7 @@ function agruparPorOrigem(lista){
       return {
         chave: k, reg: reg, itens: grupos[k],
         nome: (reg.nome || (ehCartao ? "cartão removido" : "conta removida")) +
-              " ("+tipoOrigem(ehCartao ? "cartao" : "conta")+")",
+              " ("+tipoOrigem(ehCartao ? "cartao" : "conta", reg)+")",
         receitas: contam.filter(function(l){ return l.tipo==="receita"; })
                         .reduce(function(a,l){ return a+Number(l.valor); }, 0),
         despesas: contam.filter(function(l){ return l.tipo==="despesa"; })
@@ -958,7 +964,8 @@ function linhaLanc(l){
   var serie = l.parcela_total > 1 ? " · "+l.parcela_num+"/"+l.parcela_total : "";
   var origem = (l.forma==="cartao"
     ? ((cartao(l.cartao_id)||{}).nome||"cartão")
-    : ((conta(l.conta_id)||{}).nome||"conta")) + " ("+tipoOrigem(l.forma)+")" + serie;
+    : ((conta(l.conta_id)||{}).nome||"conta")) +
+    " ("+tipoOrigem(l.forma, l.forma==="cartao" ? null : conta(l.conta_id))+")" + serie;
   // compra adiada: avisa em qual fatura ela caiu
   var adiada = "";
   if(l.forma==="cartao" && l.fatura_id){
